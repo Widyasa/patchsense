@@ -19,7 +19,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: `cargo build --workspace` sukses; `cargo run -p patchsense -- --version` mencetak versi.
   - Dep: –
 
-- [ ] **W1-T2 CI dasar**
+- [x] **W1-T2 CI dasar**
   - Deskripsi: workflow GitHub Actions `ci.yml` dengan job fmt, clippy (`-D warnings`), dan test pada matrix ubuntu, macos, windows.
   - File: `.github/workflows/ci.yml`
   - Selesai bila: workflow valid (lolos `actionlint` bila tersedia) dan hijau di PR pertama.
