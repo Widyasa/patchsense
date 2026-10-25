@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Widyasa/patchsense/schemas/report.v1.json",
+  "title": "PatchSense report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool",
+    "generated_at",
+    "target",
+    "lockfiles",
+    "data_sources",
+    "config",
+    "summary",
+    "findings",
+    "ignored",
+    "explain",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "generated_at": { "type": "string" },
+    "target": { "type": "string" },
+    "lockfiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "ecosystem", "packages", "status"],
+        "properties": {
+          "path": { "type": "string" },
+          "ecosystem": { "type": "string" },
+          "packages": { "type": "integer", "minimum": 0 },
+          "status": { "enum": ["ok", "error"] },
+          "warnings": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "data_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["osv", "epss", "kev"],
+      "properties": {
+        "osv": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fetched_at", "from_cache"],
+          "properties": {
+            "fetched_at": { "type": "string" },
+            "from_cache": { "type": "boolean" }
+          }
+        },
+        "epss": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["date", "from_cache"],
+          "properties": {
+            "date": { "type": ["string", "null"] },
+            "from_cache": { "type": "boolean" }
+          }
+        },
+        "kev": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["catalog_version", "from_cache"],
+          "properties": {
+            "catalog_version": { "type": ["string", "null"] },
+            "from_cache": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["weights", "thresholds", "fail_on"],
+      "properties": {
+        "weights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kev", "epss", "cvss", "direct", "fix_available"],
+          "properties": {
+            "kev": { "type": "number" },
+            "epss": { "type": "number" },
+            "cvss": { "type": "number" },
+            "direct": { "type": "number" },
+            "fix_available": { "type": "number" }
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["critical", "review"],
+          "properties": {
+            "critical": { "type": "number" },
+            "review": { "type": "number" }
+          }
+        },
+        "fail_on": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packages_scanned", "findings", "by_tier", "max_score", "failed"],
+      "properties": {
+        "packages_scanned": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "integer", "minimum": 0 },
+        "by_tier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["critical", "review", "defer"],
+          "properties": {
+            "critical": { "type": "integer", "minimum": 0 },
+            "review": { "type": "integer", "minimum": 0 },
+            "defer": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "max_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "failed": { "type": "boolean" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "ignored": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "package", "reason", "expires"],
+        "properties": {
+          "id": { "type": "string" },
+          "package": { "type": "string" },
+          "reason": { "type": "string" },
+          "expires": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "explain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "status"],
+      "properties": {
+        "agent": { "type": ["string", "null"] },
+        "status": {
+          "enum": ["not_requested", "ok", "no_agent_found", "failed", "timeout"]
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "aliases",
+        "cves",
+        "summary",
+        "package",
+        "source_file",
+        "fixed_versions",
+        "cvss",
+        "epss",
+        "kev",
+        "score",
+        "tier",
+        "tier_label",
+        "score_breakdown",
+        "references",
+        "ignored",
+        "explanation"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "cves": { "type": "array", "items": { "type": "string" } },
+        "summary": { "type": "string" },
+        "package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ecosystem", "name", "version", "direct", "dev"],
+          "properties": {
+            "ecosystem": { "type": "string" },
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "direct": { "type": ["boolean", "null"] },
+            "dev": { "type": "boolean" }
+          }
+        },
+        "source_file": { "type": "string" },
+        "fixed_versions": { "type": "array", "items": { "type": "string" } },
+        "cvss": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["version", "vector", "base_score", "source"],
+              "properties": {
+                "version": { "type": ["string", "null"] },
+                "vector": { "type": ["string", "null"] },
+                "base_score": { "type": "number" },
+                "source": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "epss": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["score", "percentile", "date"],
+              "properties": {
+                "score": { "type": "number" },
+                "percentile": { "type": "number" },
+                "date": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "kev": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["date_added", "due_date", "ransomware", "name"],
+              "properties": {
+                "date_added": { "type": "string" },
+                "due_date": { "type": "string" },
+                "ransomware": { "type": "string" },
+                "name": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "tier": { "enum": ["critical", "review", "defer"] },
+        "tier_label": { "type": "string" },
+        "score_breakdown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kev", "epss", "cvss", "direct", "fix_available", "total_weight"],
+          "properties": {
+            "kev": { "type": "number" },
+            "epss": { "type": "number" },
+            "cvss": { "type": "number" },
+            "direct": { "type": "number" },
+            "fix_available": { "type": "number" },
+            "total_weight": { "type": "number" }
+          }
+        },
+        "references": { "type": "array", "items": { "type": "string" } },
+        "ignored": { "type": "boolean" },
+        "explanation": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["agent", "text", "disclaimer"],
+              "properties": {
+                "agent": { "type": "string" },
+                "text": { "type": "string" },
+                "disclaimer": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

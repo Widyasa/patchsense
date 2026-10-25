@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cache::{Cache, DEFAULT_TTL};
-use crate::config::{FailOn, ScoreSection};
+use crate::config::{FailOn, IgnoreRule, ScoreSection};
 use crate::discovery::discover;
 use crate::enrich::epss::{self, DEFAULT_EPSS_URL};
 use crate::enrich::kev::{self, DEFAULT_KEV_URL};
@@ -24,7 +24,11 @@ use crate::enrich::merge_advisories;
 use crate::error::CoreError;
 use crate::http::HttpClient;
 use crate::lockfile::parser_for;
-use crate::model::{Advisory, Ecosystem, Finding, Package, Report, Summary, Tier};
+use crate::model::{
+    Advisory, BreakdownSignal, CvssSignal, Ecosystem, EpssSignal, Finding, FindingSignals,
+    IgnoredItem, KevSignal, LockfileRecord, Package, Report, ReportContext, Summary, Tier,
+    WeightSnapshot,
+};
 use crate::osv::{
     cache_query, cached_query, fetch_advisories_cached, query_batch, AdvisoryCache, OsvVulnRef,
 };
@@ -58,8 +62,8 @@ pub struct ScanOptions {
     pub fail_on: FailOn,
     /// Weights and tier cutoffs.
     pub score: ScoreSection,
-    /// Advisory or CVE ids suppressed by config.
-    pub ignore_ids: Vec<String>,
+    /// Advisory or CVE rules suppressed by config.
+    pub ignore: Vec<IgnoreRule>,
     /// EPSS origin. The CLI sets this from `PATCHSENSE_EPSS_URL`.
     pub epss_base_url: String,
     /// KEV document URL. The CLI sets this from `PATCHSENSE_KEV_URL`.
@@ -80,7 +84,7 @@ impl Default for ScanOptions {
             enrich: false,
             fail_on: FailOn::Critical,
             score: ScoreSection::default(),
-            ignore_ids: Vec::new(),
+            ignore: Vec::new(),
             epss_base_url: DEFAULT_EPSS_URL.to_string(),
             kev_feed_url: DEFAULT_KEV_URL.to_string(),
         }
@@ -117,8 +121,13 @@ where
     let mut packages = Vec::new();
     let mut warnings = Vec::new();
     let mut failures = Vec::new();
+    let mut lockfiles = Vec::new();
 
     for file in &files {
+        let label = source_label(root, file);
+        let ecosystem = parser_for(file)
+            .map(|parser| parser.ecosystem().as_osv_str().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
         let content = match std::fs::read_to_string(file) {
             Ok(content) => content,
             Err(source) => {
@@ -129,6 +138,13 @@ where
                 if !options.keep_going {
                     return Err(err);
                 }
+                lockfiles.push(LockfileRecord {
+                    path: label,
+                    ecosystem,
+                    packages: 0,
+                    status: "error".to_string(),
+                    warnings: vec![err.to_string()],
+                });
                 failures.push(err);
                 continue;
             }
@@ -143,8 +159,16 @@ where
         };
         match parsed {
             Ok(parsed) => {
-                warnings.extend(parsed.warnings);
-                let source = source_label(root, file);
+                let file_warnings = parsed.warnings.clone();
+                warnings.extend(file_warnings.iter().cloned());
+                lockfiles.push(LockfileRecord {
+                    path: label.clone(),
+                    ecosystem,
+                    packages: parsed.packages.len(),
+                    status: "ok".to_string(),
+                    warnings: file_warnings,
+                });
+                let source = label;
                 for mut package in parsed.packages {
                     package.source_file = source.clone();
                     package.source_files = vec![source.clone()];
@@ -155,6 +179,13 @@ where
                 if !options.keep_going {
                     return Err(err);
                 }
+                lockfiles.push(LockfileRecord {
+                    path: label,
+                    ecosystem,
+                    packages: 0,
+                    status: "error".to_string(),
+                    warnings: vec![err.to_string()],
+                });
                 failures.push(err);
             }
         }
@@ -205,7 +236,7 @@ where
             groups.push((package.clone(), advisories));
         }
     }
-    let (findings, ignored) = if options.enrich {
+    let (findings, ignored, epss_date, kev_catalog_version) = if options.enrich {
         score_groups(client, options, cache.as_ref(), now, groups, &mut warnings).await?
     } else {
         let mut findings = Vec::new();
@@ -216,6 +247,7 @@ where
                     package: package.clone(),
                     tier: Tier::Defer,
                     score: 0,
+                    signals: FindingSignals::default(),
                 });
             }
         }
@@ -233,9 +265,10 @@ where
                     &right.advisory.id,
                 ))
         });
-        (findings, Vec::new())
+        (findings, Vec::new(), None, None)
     };
     let summary = summarize(&findings, packages.len(), options);
+    let generated_at = rfc3339_from_unix(now);
 
     Ok(Report {
         schema_version: 1,
@@ -243,7 +276,50 @@ where
         warnings,
         summary,
         ignored,
+        context: ReportContext {
+            target: slash_path(root),
+            generated_at: generated_at.clone(),
+            lockfiles,
+            osv_fetched_at: generated_at,
+            osv_from_cache: options.offline,
+            epss_date,
+            epss_from_cache: false,
+            kev_catalog_version,
+            kev_from_cache: false,
+            weights: WeightSnapshot {
+                kev: options.score.weights.kev,
+                epss: options.score.weights.epss,
+                cvss: options.score.weights.cvss,
+                direct: options.score.weights.direct,
+                fix_available: options.score.weights.fix_available,
+            },
+            threshold_critical: options.score.thresholds.critical,
+            threshold_review: options.score.thresholds.review,
+            fail_on: fail_on_token(options.fail_on),
+            explain_status: "not_requested".to_string(),
+            explain_agent: None,
+        },
     })
+}
+
+fn fail_on_token(fail_on: FailOn) -> String {
+    match fail_on {
+        FailOn::Critical => "critical".to_string(),
+        FailOn::Review => "review".to_string(),
+        FailOn::Any => "any".to_string(),
+        FailOn::Never => "never".to_string(),
+        FailOn::Score(score) => score.to_string(),
+    }
+}
+
+/// `YYYY-MM-DDTHH:MM:SSZ` for a Unix timestamp.
+fn rfc3339_from_unix(seconds: i64) -> String {
+    let date = crate::config::ymd_from_unix_seconds(seconds);
+    let tod = seconds.rem_euclid(86_400) as u32;
+    let hour = tod / 3600;
+    let minute = (tod % 3600) / 60;
+    let second = tod % 60;
+    format!("{date}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 async fn score_groups<C>(
@@ -253,31 +329,48 @@ async fn score_groups<C>(
     now: i64,
     groups: Vec<(Package, Vec<Advisory>)>,
     warnings: &mut Vec<String>,
-) -> Result<(Vec<Finding>, Vec<String>), CoreError>
+) -> Result<
+    (
+        Vec<Finding>,
+        Vec<IgnoredItem>,
+        Option<String>,
+        Option<String>,
+    ),
+    CoreError,
+>
 where
     C: HttpClient + Clone + 'static,
 {
     let cves = collect_cves(&groups);
-    let (epss, kev) = if cves.is_empty() {
-        (BTreeMap::new(), BTreeMap::new())
+    let (epss, kev, kev_catalog_version) = if cves.is_empty() {
+        (BTreeMap::new(), BTreeMap::new(), None)
     } else if options.offline {
         warnings.push(
             "offline: EPSS and KEV were not fetched; missing rows count as absent".to_string(),
         );
-        (BTreeMap::new(), BTreeMap::new())
+        (BTreeMap::new(), BTreeMap::new(), None)
     } else {
         let epss = epss::fetch_epss(client, &options.epss_base_url, &cves, cache, now).await?;
         let catalog = kev::fetch_kev(client, &options.kev_feed_url, cache, now).await?;
-        (epss, catalog.by_cve)
+        let version = catalog.catalog_version.clone();
+        (epss, catalog.by_cve, Some(version))
     };
+    let epss_date = epss.values().map(|entry| entry.date.clone()).max();
 
     let mut ranked = Vec::new();
     let mut ignored = Vec::new();
     let mut warned_weights = false;
     for (package, advisories) in &groups {
         for item in merge_advisories(advisories, &epss, &kev) {
-            if is_ignored(&item.id, &item.aliases, &item.cves, &options.ignore_ids) {
-                ignored.push(item.id);
+            if let Some(rule) =
+                matching_ignore(&item.id, &item.aliases, &item.cves, &options.ignore)
+            {
+                ignored.push(IgnoredItem {
+                    id: item.id,
+                    package: format!("{}@{}", package.name, package.version),
+                    reason: rule.reason.clone(),
+                    expires: rule.expires.clone(),
+                });
                 continue;
             }
             let Some(source) = advisories.iter().find(|advisory| advisory.id == item.id) else {
@@ -285,6 +378,7 @@ where
             };
             let mut advisory = source.clone();
             advisory.aliases.clone_from(&item.aliases);
+            advisory.references.clone_from(&item.references);
             advisory.fixed_versions.clone_from(&item.fixed_versions);
             let request = ScoreRequest {
                 package_name: package.name.clone(),
@@ -309,6 +403,7 @@ where
                     package: package.clone(),
                     tier: scored.tier,
                     score: scored.score,
+                    signals: signals_from(&item, &scored.breakdown),
                 },
             ));
         }
@@ -323,7 +418,42 @@ where
             .then_with(|| left.1.advisory.id.cmp(&right.1.advisory.id))
     });
     let findings = ranked.into_iter().map(|(_, finding)| finding).collect();
-    Ok((findings, ignored))
+    Ok((findings, ignored, epss_date, kev_catalog_version))
+}
+
+fn signals_from(
+    item: &crate::enrich::EnrichedAdvisory,
+    breakdown: &crate::score::ScoreBreakdown,
+) -> FindingSignals {
+    FindingSignals {
+        cves: item.cves.clone(),
+        cvss: item.cvss.as_ref().map(|cvss| CvssSignal {
+            version: cvss.version.clone(),
+            vector: cvss.vector.clone(),
+            base_score: cvss.base_score,
+            source: cvss.source.as_str().to_string(),
+        }),
+        epss: item.epss.date.as_ref().map(|date| EpssSignal {
+            score: item.epss.score,
+            percentile: item.epss.percentile,
+            date: date.clone(),
+        }),
+        kev: item.kev_record.as_ref().map(|kev| KevSignal {
+            date_added: kev.date_added.clone(),
+            due_date: kev.due_date.clone(),
+            ransomware: kev.known_ransomware_campaign_use.clone(),
+            name: kev.vulnerability_name.clone(),
+        }),
+        breakdown: Some(BreakdownSignal {
+            kev: breakdown.kev,
+            epss: breakdown.epss,
+            cvss: breakdown.cvss,
+            direct: breakdown.direct,
+            fix_available: breakdown.fix_available,
+            total_weight: breakdown.total_weight,
+        }),
+        explanation: None,
+    }
 }
 
 fn collect_cves(groups: &[(Package, Vec<Advisory>)]) -> Vec<String> {
@@ -347,11 +477,16 @@ fn is_cve(id: &str) -> bool {
     id.len() >= 4 && id[..4].eq_ignore_ascii_case("CVE-")
 }
 
-fn is_ignored(id: &str, aliases: &[String], cves: &[String], ignore_ids: &[String]) -> bool {
-    ignore_ids.iter().any(|rule| {
-        rule == id
-            || aliases.iter().any(|alias| alias == rule)
-            || cves.iter().any(|cve| cve.eq_ignore_ascii_case(rule))
+fn matching_ignore<'a>(
+    id: &str,
+    aliases: &[String],
+    cves: &[String],
+    rules: &'a [IgnoreRule],
+) -> Option<&'a IgnoreRule> {
+    rules.iter().find(|rule| {
+        rule.id == id
+            || aliases.iter().any(|alias| alias == &rule.id)
+            || cves.iter().any(|cve| cve.eq_ignore_ascii_case(&rule.id))
     })
 }
 
