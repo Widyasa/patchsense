@@ -61,7 +61,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata (satu dengan `pyproject.toml`), snapshot lolos.
   - Dep: W1-T4
 
-- [ ] **W1-T9 Abstraksi HTTP dan fake**
+- [x] **W1-T9 Abstraksi HTTP dan fake**
   - Deskripsi: trait `HttpClient` dengan impl `ReqwestClient` (rustls, user-agent `patchsense/<versi>`, timeout, retry 429/5xx dengan backoff maksimal 3 kali) dan `FakeHttp` (respon dari fixture, merekam request, opsi "panic bila dipanggil" untuk tes offline). Base URL bisa diganti via env (PRD §6.7).
   - File: `core/http.rs`
   - Selesai bila: unit test retry memakai `FakeHttp` (tanpa jaringan) dan tes bahwa `FakeHttp::forbid()` gagal bila dipanggil.
