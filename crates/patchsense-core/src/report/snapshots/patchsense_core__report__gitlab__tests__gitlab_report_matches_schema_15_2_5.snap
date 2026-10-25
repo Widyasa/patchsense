@@ -1,0 +1,64 @@
+---
+source: crates/patchsense-core/src/report/gitlab.rs
+expression: snapshot
+---
+{
+  "scan": {
+    "analyzer": {
+      "id": "patchsense",
+      "name": "PatchSense",
+      "url": "https://github.com/Widyasa/patchsense",
+      "vendor": {
+        "name": "PatchSense"
+      },
+      "version": "0.1.0"
+    },
+    "end_time": "<redacted>",
+    "scanner": {
+      "id": "patchsense",
+      "name": "PatchSense",
+      "url": "https://github.com/Widyasa/patchsense",
+      "vendor": {
+        "name": "PatchSense"
+      },
+      "version": "0.1.0"
+    },
+    "start_time": "<redacted>",
+    "status": "success",
+    "type": "dependency_scanning"
+  },
+  "version": "15.2.5",
+  "vulnerabilities": [
+    {
+      "description": "Command Injection in lodash",
+      "id": "npm/package-lock.json/lodash@4.17.15/GHSA-35jh-r3h4-6jhm",
+      "identifiers": [
+        {
+          "name": "GHSA-35jh-r3h4-6jhm",
+          "type": "ghsa",
+          "url": "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm",
+          "value": "GHSA-35jh-r3h4-6jhm"
+        },
+        {
+          "name": "CVE-2021-23337",
+          "type": "cve",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2021-23337",
+          "value": "CVE-2021-23337"
+        }
+      ],
+      "location": {
+        "dependency": {
+          "direct": true,
+          "package": {
+            "name": "lodash"
+          },
+          "version": "4.17.15"
+        },
+        "file": "package-lock.json"
+      },
+      "name": "Command Injection in lodash",
+      "severity": "Low",
+      "solution": "Upgrade to 4.17.21"
+    }
+  ]
+}
