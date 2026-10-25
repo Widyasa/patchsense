@@ -1,0 +1,39 @@
+---
+source: crates/patchsense/src/agent/prompt.rs
+expression: text
+---
+You explain dependency vulnerability findings. Answer in English.
+For each finding: one paragraph on impact, then one remediation step.
+Do not invent versions. Quote only fixed versions and links present in the data.
+If a finding has no fixed version, say that no fix version is available.
+
+Findings: 1 of 1
+
+Data (JSON):
+[
+  {
+    "breakdown": {
+      "cvss": 14.4,
+      "direct": 10.0,
+      "epss": 3.075,
+      "fix_available": 10.0,
+      "kev": 35.0,
+      "total_weight": 100.0
+    },
+    "ecosystem": "npm",
+    "epss": 0.0123,
+    "fixed_versions": [
+      "4.17.21"
+    ],
+    "id": "GHSA-35jh-r3h4-6jhm",
+    "kev": true,
+    "package": "lodash",
+    "references": [
+      "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm"
+    ],
+    "score": 88,
+    "summary": "Command Injection in lodash",
+    "tier": "Kritis",
+    "version": "4.17.15"
+  }
+]

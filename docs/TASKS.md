@@ -279,7 +279,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes `tools/call` untuk tiap tool dengan fixture; output `scan_project` dibatasi 50 temuan.
   - Dep: W5-T5
 
-- [ ] **W5-T7 Prompt builder untuk agent**
+- [x] **W5-T7 Prompt builder untuk agent**
   - Deskripsi: bangun prompt dari top-N temuan (PRD §12), bahasa `id`/`en`, batas panjang aman lintas OS.
   - File: `cli/agent/prompt.rs`
   - Selesai bila: snapshot prompt `id` dan `en`; tes pemotongan untuk input besar.
