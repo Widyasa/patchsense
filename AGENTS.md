@@ -109,4 +109,11 @@ Sebuah tugas selesai bila:
 
 1. Untuk setiap tugas atau kelompok tugas kecil dari `docs/TASKS.md`, buat **issue** GitHub dulu. Judulnya pakai ID tugas, misal `W1-T1: ...`, dan isinya kriteria selesai.
 2. Kerjakan di branch terpisah, lalu buka **PR** yang menautkan issue tersebut (`Closes #<nomor>`).
-3. Merge ke branch default `master` hanya setelah PR dibuka dan CI hijau. Jangan pernah commit langsung ke `master`.
+3. Jangan pernah commit langsung ke `master`.
+4. Sebelum setiap `git push`, verifikasi lokal wajib lolos semuanya. Jangan push commit yang gagal di salah satu perintah ini:
+   - `cargo fmt --all --check`
+   - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+   - `cargo test --workspace`
+   - `cargo insta test` bila ada perubahan snapshot
+5. Di deskripsi PR, tempel bagian **Local verification** yang menyebut perintah di atas beserta hasil lolosnya, dan catatan `CI not run: GitHub account billing lock` selama Actions tidak jalan.
+6. Merge ke `master` hanya setelah verifikasi lokal itu lolos pada head PR terakhir yang sudah di-rebase ke `master` terkini. Selama job GitHub Actions tidak mulai karena akun terkunci billing, verifikasi lokal yang terdokumentasi itu yang menggantikan CI. Begitu CI berjalan lagi, CI hijau wajib sebagai tambahan, bukan pengganti verifikasi lokal.
