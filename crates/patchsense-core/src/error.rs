@@ -72,6 +72,15 @@ pub enum CoreError {
         /// What was wrong.
         message: String,
     },
+
+    /// The SQLite cache could not be opened or updated.
+    #[error("cache error at {path}: {message}")]
+    Cache {
+        /// Database file.
+        path: PathBuf,
+        /// SQLite or schema cause.
+        message: String,
+    },
 }
 
 impl CoreError {

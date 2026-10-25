@@ -2,6 +2,7 @@
 //!
 //! This crate does not print to a terminal and does not depend on CLI crates.
 
+pub mod cache;
 pub mod discovery;
 pub mod error;
 pub mod http;
