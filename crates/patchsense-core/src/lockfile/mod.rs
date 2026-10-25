@@ -10,9 +10,11 @@ use crate::error::CoreError;
 use crate::model::{Ecosystem, ParsedLockfile};
 
 mod npm;
+mod poetry;
 mod requirements;
 
 use npm::NpmPackageLockParser;
+use poetry::PoetryParser;
 use requirements::RequirementsParser;
 
 /// A lockfile format PatchSense knows how to read.
@@ -64,10 +66,7 @@ const YARN_LOCK: FileNameParser = FileNameParser {
     file_name: "yarn.lock",
     ecosystem: Ecosystem::Npm,
 };
-const POETRY_LOCK: FileNameParser = FileNameParser {
-    file_name: "poetry.lock",
-    ecosystem: Ecosystem::Pypi,
-};
+const POETRY_LOCK: PoetryParser = PoetryParser;
 const REQUIREMENTS: RequirementsParser = RequirementsParser;
 const COMPOSER_LOCK: FileNameParser = FileNameParser {
     file_name: "composer.lock",

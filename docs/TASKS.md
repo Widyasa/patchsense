@@ -55,7 +55,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata, snapshot paket dan warning, nama dinormalisasi PEP 503.
   - Dep: W1-T4
 
-- [ ] **W1-T8 Parser `poetry.lock`**
+- [x] **W1-T8 Parser `poetry.lock`**
   - Deskripsi: parse `[[package]]` (name, version, category/groups bila ada). `direct` dari `pyproject.toml` di direktori yang sama bila ada (`[tool.poetry.dependencies]` atau `[project].dependencies`), kalau tidak `None`.
   - File: `core/lockfile/poetry.rs`, `tests/fixtures/pypi/`
   - Selesai bila: ≥2 fixture nyata (satu dengan `pyproject.toml`), snapshot lolos.
