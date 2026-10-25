@@ -1,0 +1,38 @@
+name: self-test
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+concurrency:
+  group: self-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  patchsense:
+    name: action on examples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build the binary
+        run: cargo build --release -p patchsense --bin patchsense
+
+      - name: Run PatchSense
+        uses: ./
+        with:
+          path: examples/php2shell-demo
+          fail-on: never
+          binary-path: target/release/patchsense
+          sarif: "false"
+          comment: "false"

@@ -255,7 +255,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes HTTP palsu untuk buat dan edit; token kosong → pesan jelas dan exit 2.
   - Dep: W5-T1
 
-- [ ] **W5-T3 GitHub Action**
+- [x] **W5-T3 GitHub Action**
   - Deskripsi: `action.yml` composite sesuai PRD §13 (install biner sesuai OS/arch, scan sekali multi-format, upload SARIF, komentar, exit code akhir) dan workflow contoh `.github/workflows/self-test.yml` yang menjalankan action terhadap `examples/`.
   - File: `action.yml`, `.github/workflows/self-test.yml`, `examples/`
   - Selesai bila: self-test hijau di PR repo sendiri (sebelum ada rilis, boleh memakai biner hasil `cargo build` lewat input tersembunyi `binary-path`).
