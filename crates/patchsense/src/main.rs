@@ -9,6 +9,7 @@ use anyhow::Context;
 use clap::Parser;
 
 use patchsense_core::cache::{self, resolve_cache_db, Cache, CacheLocation};
+use patchsense_core::config::{self, FailOn, FlagInput, LoadRequest};
 use patchsense_core::http::{osv_base_url, ReqwestClient};
 use patchsense_core::model::{Ecosystem, Report};
 use patchsense_core::scan::{scan_with, ScanOptions};
@@ -41,10 +42,33 @@ async fn try_main() -> anyhow::Result<()> {
                         .collect::<Result<Vec<_>, _>>()?,
                 )
             };
+            let fail_on = args.fail_on.as_deref().map(FailOn::parse).transpose()?;
+            let config_env = std::env::var_os("PATCHSENSE_CONFIG").map(PathBuf::from);
+            let loaded = config::load_config(&LoadRequest {
+                start: &path,
+                config_flag: args.config.as_deref(),
+                config_env: config_env.as_deref(),
+                today: &config::today_utc(),
+                env: config::env_from_process()?,
+                flags: FlagInput {
+                    fail_on,
+                    ecosystems,
+                    include_dev: if args.no_dev { Some(false) } else { None },
+                    agent: None,
+                    exclude: args.exclude,
+                },
+            })?;
+            for warning in &loaded.warnings {
+                eprintln!("warning: {warning}");
+            }
             let options = ScanOptions {
                 keep_going: !args.no_keep_going,
-                ecosystems,
-                no_dev: args.no_dev,
+                ecosystems: if loaded.config.scans_every_ecosystem() {
+                    None
+                } else {
+                    Some(loaded.config.scan.ecosystems.clone())
+                },
+                no_dev: !loaded.config.scan.include_dev,
                 offline: args.offline,
                 no_cache: args.no_cache,
                 cache_db: if args.no_cache {
@@ -53,6 +77,7 @@ async fn try_main() -> anyhow::Result<()> {
                     Some(cache_db_path(args.cache_dir.as_deref()))
                 },
                 now: None,
+                excludes: loaded.config.scan.exclude.clone(),
             };
             let client = ReqwestClient::new().context("failed to build the HTTP client")?;
             let report = scan_with(&client, &osv_base_url(), &path, &options).await?;

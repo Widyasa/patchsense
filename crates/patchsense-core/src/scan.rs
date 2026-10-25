@@ -41,6 +41,8 @@ pub struct ScanOptions {
     pub cache_db: Option<PathBuf>,
     /// Unix seconds for TTL checks. `None` uses the current time.
     pub now: Option<i64>,
+    /// Extra exclude globs from config and `--exclude`.
+    pub excludes: Vec<String>,
 }
 
 impl Default for ScanOptions {
@@ -53,6 +55,7 @@ impl Default for ScanOptions {
             no_cache: true,
             cache_db: None,
             now: None,
+            excludes: Vec::new(),
         }
     }
 }
@@ -77,7 +80,7 @@ pub async fn scan_with<C>(
 where
     C: HttpClient + Clone + 'static,
 {
-    let files = discover(root, &[])?;
+    let files = discover(root, &options.excludes)?;
     if files.is_empty() {
         return Err(CoreError::NoLockfile {
             path: root.to_path_buf(),
