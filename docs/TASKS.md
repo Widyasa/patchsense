@@ -179,7 +179,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes untuk advisory dengan 2 CVE, tanpa CVE, dan dua advisory yang saling alias.
   - Dep: W3-T3, W3-T4, W3-T5
 
-- [ ] **W3-T7 Konfigurasi `patchsense.toml`**
+- [x] **W3-T7 Konfigurasi `patchsense.toml`**
   - Deskripsi: struct `Config` sesuai PRD §7 (`deny_unknown_fields`), default, pencarian file naik sampai root git, merge dengan env dan flag (prioritas PRD AC9.3), validasi `ignore` (wajib `reason`, `expires` opsional).
   - File: `core/config.rs`, `cli/cli.rs`
   - Selesai bila: tes parse contoh PRD §7 persis, field asing → error, urutan prioritas, ignore kedaluwarsa memberi warning.

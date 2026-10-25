@@ -76,4 +76,16 @@ pub struct ScanArgs {
     /// Directory that contains `cache.db`. Overrides `PATCHSENSE_CACHE_DIR`.
     #[arg(long)]
     pub cache_dir: Option<PathBuf>,
+
+    /// Path to `patchsense.toml`. Overrides discovery and `PATCHSENSE_CONFIG`.
+    #[arg(long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
+
+    /// Exit when a finding reaches this bar: critical, review, any, never, or 0-100.
+    #[arg(long, value_name = "WHEN")]
+    pub fail_on: Option<String>,
+
+    /// Extra paths to skip. Repeatable. Added to `scan.exclude` from the config file.
+    #[arg(long, action = ArgAction::Append)]
+    pub exclude: Vec<String>,
 }

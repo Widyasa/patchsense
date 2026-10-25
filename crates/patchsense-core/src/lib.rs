@@ -3,6 +3,7 @@
 //! This crate does not print to a terminal and does not depend on CLI crates.
 
 pub mod cache;
+pub mod config;
 pub mod discovery;
 pub mod enrich;
 pub mod error;
