@@ -1,0 +1,142 @@
+name: PatchSense
+description: Triage CVE berprioritas dari lockfile (OSV + EPSS + KEV + CVSS)
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  path:
+    description: Direktori atau lockfile yang di-scan
+    default: "."
+  version:
+    description: Versi PatchSense (mis. 0.1.0) atau latest
+    default: latest
+  fail-on:
+    description: critical | review | any | never | angka 0-100
+    default: critical
+  config:
+    description: Path patchsense.toml
+    default: ""
+  sarif:
+    description: Unggah SARIF ke code scanning
+    default: "true"
+  comment:
+    description: Komentar ringkasan di PR
+    default: "true"
+  explain:
+    description: Jalankan --explain bila CLI agent tersedia di runner
+    default: "false"
+  github-token:
+    description: Token untuk komentar PR
+    default: ${{ github.token }}
+  binary-path:
+    description: Internal. Path biner patchsense yang sudah dibangun. Melewati installer rilis.
+    default: ""
+
+outputs:
+  report-path:
+    description: Path report JSON
+    value: patchsense-report.json
+  sarif-path:
+    description: Path SARIF
+    value: patchsense.sarif
+  max-score:
+    description: Skor tertinggi
+    value: ${{ steps.scan.outputs.max-score }}
+  critical-count:
+    description: Jumlah temuan Kritis
+    value: ${{ steps.scan.outputs.critical-count }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install PatchSense
+      shell: bash
+      env:
+        BINARY_PATH: ${{ inputs.binary-path }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        install_dir="${RUNNER_TEMP}/patchsense-bin"
+        mkdir -p "${install_dir}"
+        if [ -n "${BINARY_PATH}" ]; then
+          cp "${BINARY_PATH}" "${install_dir}/"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
+          exit 0
+        fi
+        if [ "${VERSION}" = "latest" ]; then
+          base="https://github.com/Widyasa/patchsense/releases/latest/download"
+        else
+          tag="${VERSION}"
+          case "${tag}" in
+            v*) ;;
+            *) tag="v${tag}" ;;
+          esac
+          base="https://github.com/Widyasa/patchsense/releases/download/${tag}"
+        fi
+        if [ "${RUNNER_OS}" = "Windows" ]; then
+          curl --proto '=https' --tlsv1.2 -fsSL "${base}/patchsense-installer.ps1" -o "${RUNNER_TEMP}/patchsense-installer.ps1"
+          powershell -NoProfile -ExecutionPolicy Bypass -File "${RUNNER_TEMP}/patchsense-installer.ps1"
+        else
+          curl --proto '=https' --tlsv1.2 -fsSL "${base}/patchsense-installer.sh" -o "${RUNNER_TEMP}/patchsense-installer.sh"
+          sh "${RUNNER_TEMP}/patchsense-installer.sh"
+        fi
+
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        CONFIG: ${{ inputs.config }}
+        EXPLAIN: ${{ inputs.explain }}
+      run: |
+        set +e
+        args=(scan "${SCAN_PATH}" --fail-on "${FAIL_ON}" --no-color
+          --format json --output patchsense-report.json
+          --format sarif --output patchsense.sarif
+          --format markdown --output patchsense-report.md)
+        if [ -n "${CONFIG}" ]; then
+          args+=(--config "${CONFIG}")
+        fi
+        if [ "${EXPLAIN}" = "true" ]; then
+          args+=(--explain)
+        fi
+        patchsense "${args[@]}"
+        code=$?
+        echo "${code}" > "${RUNNER_TEMP}/patchsense-exit"
+        python3 -c 'import json,os; p="patchsense-report.json"; r=json.load(open(p,encoding="utf-8")) if os.path.exists(p) else {}; s=r.get("summary",{}); m=s.get("max_score",0); c=s.get("by_tier",{}).get("critical",0); open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8").write("max-score=%s\ncritical-count=%s\n"%(m,c))'
+        exit 0
+
+    - name: Upload SARIF
+      if: inputs.sarif == 'true'
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: patchsense.sarif
+        category: patchsense
+
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_API_URL: ${{ github.api_url }}
+      run: |
+        set +e
+        patchsense comment --provider github --report patchsense-report.json
+        status=$?
+        if [ "${status}" -ne 0 ]; then
+          echo "::warning::patchsense comment exited ${status}; the scan exit code is unchanged"
+        fi
+        exit 0
+
+    - name: Exit with the scan code
+      shell: bash
+      run: |
+        set -euo pipefail
+        code="$(cat "${RUNNER_TEMP}/patchsense-exit")"
+        echo "patchsense scan exit ${code}"
+        exit "${code}"
