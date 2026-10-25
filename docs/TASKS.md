@@ -335,7 +335,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: GIF menunjukkan temuan PHP2Shell bertingkat Kritis. Bila advisory PHP2Shell belum ada di OSV/KEV saat itu, pakai CVE KEV lain yang nyata dan catat di PR.
   - Dep: W5-T9
 
-- [ ] **W6-T6 README dan dokumentasi**
+- [x] **W6-T6 README dan dokumentasi**
   - Deskripsi: README (instalasi 4 kanal, quick start, cara kerja skor dengan tabel bobot, contoh CI GitHub dan GitLab, MCP dan `--explain`, exit code, konfigurasi, lisensi ganda), `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`.
   - File: `README.md`, `docs/*.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`
   - Selesai bila: semua contoh perintah di README diuji jalan (atau ditandai bergantung rilis), link tidak rusak.
