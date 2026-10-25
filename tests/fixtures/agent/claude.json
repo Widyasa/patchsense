@@ -1,0 +1,6 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "result": "Upgrade lodash to 4.17.21.\n"
+}

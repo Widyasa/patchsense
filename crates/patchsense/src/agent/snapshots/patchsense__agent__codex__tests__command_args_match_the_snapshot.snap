@@ -1,0 +1,13 @@
+---
+source: crates/patchsense/src/agent/codex.rs
+expression: "argv(&command, dir.path())"
+---
+codex
+exec
+--sandbox
+read-only
+-o
+<dir>/last.md
+explain lodash
+
+cwd=<dir>

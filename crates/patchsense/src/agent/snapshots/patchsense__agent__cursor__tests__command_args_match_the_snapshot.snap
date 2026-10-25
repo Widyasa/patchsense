@@ -1,0 +1,11 @@
+---
+source: crates/patchsense/src/agent/cursor.rs
+expression: "argv(&command, dir.path())"
+---
+agent
+-p
+--output-format
+json
+explain lodash
+
+cwd=<dir>

@@ -285,7 +285,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot prompt `id` dan `en`; tes pemotongan untuk input besar.
   - Dep: W3-T9
 
-- [ ] **W5-T8 Adapter agent: codex, claude, cursor**
+- [x] **W5-T8 Adapter agent: codex, claude, cursor**
   - Deskripsi: trait `AgentAdapter` dan tiga adapter (PRD §12) dengan deteksi PATH (`agent` lalu `cursor-agent` untuk Cursor), timeout, read-only. Cek ulang flag di dokumentasi resmi saat mengerjakan.
   - File: `cli/agent/mod.rs`, `cli/agent/codex.rs`, `cli/agent/claude.rs`, `cli/agent/cursor.rs`, `tests/fixtures/agent/`
   - Selesai bila: snapshot argumen `build_command` dan tes `parse_output` dari fixture stdout untuk tiap adapter; tidak ada flag izin tulis.
