@@ -4,6 +4,7 @@
 
 pub mod cache;
 pub mod discovery;
+pub mod enrich;
 pub mod error;
 pub mod http;
 pub mod lockfile;
