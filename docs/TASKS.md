@@ -211,7 +211,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot tabel tanpa warna lolos; tes bahwa non-TTY tidak mencetak escape code.
   - Dep: W3-T9
 
-- [ ] **W4-T3 Output SARIF 2.1.0**
+- [x] **W4-T3 Output SARIF 2.1.0**
   - Deskripsi: rules per advisory, results per temuan, level per tier, `security-severity`, lokasi lockfile (baris paket bila parser menyimpan offset; kalau tidak baris 1), `partialFingerprints` stabil.
   - File: `core/report/sarif.rs`
   - Selesai bila: snapshot lolos dan valid terhadap skema SARIF 2.1.0 (simpan salinan skema di `tests/schemas/`).
