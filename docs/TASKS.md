@@ -13,7 +13,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 ## Minggu 1: Fondasi (workspace, model, parser npm dan PyPI, klien OSV)
 
-- [ ] **W1-T1 Inisialisasi workspace dan lisensi**
+- [x] **W1-T1 Inisialisasi workspace dan lisensi**
   - Deskripsi: buat workspace Cargo dengan crate `patchsense-core` (lib) dan `patchsense` (bin), edisi 2021, `license = "MIT OR Apache-2.0"`, `rust-version` diisi. Tambahkan `LICENSE-MIT`, `LICENSE-APACHE`, `.gitignore`, `rustfmt.toml` (boleh kosong), README placeholder, dan salin `AGENTS.md` dari paket handoff.
   - File: `Cargo.toml`, `crates/*/Cargo.toml`, `crates/*/src/lib.rs|main.rs`, `LICENSE-*`, `AGENTS.md`
   - Selesai bila: `cargo build --workspace` sukses; `cargo run -p patchsense -- --version` mencetak versi.

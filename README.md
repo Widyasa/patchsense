@@ -30,3 +30,12 @@ This repository is built from the PatchSense handoff. The design source of truth
 - The API endpoints in the PRD (OSV querybatch and vulns, FIRST EPSS, CISA KEV JSON) were checked on 25 October 2026.
 - Crate versions are intentionally not pinned in the spec. Add dependencies with `cargo add` (latest stable) and commit `Cargo.lock`.
 - CLI flags for Codex, Claude Code, and Cursor were checked against official docs on 25 October 2026 and can change. Re-check them when doing W5-T8.
+
+## Build
+
+```bash
+cargo build --workspace
+cargo run -p patchsense -- --version
+```
+
+The workspace is `crates/patchsense-core` (library) and `crates/patchsense` (binary). Edition 2021. Minimum Rust version is recorded in `rust-version` (`Cargo.toml`).
