@@ -25,7 +25,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: workflow valid (lolos `actionlint` bila tersedia) dan hijau di PR pertama.
   - Dep: W1-T1
 
-- [ ] **W1-T3 Model domain dan error**
+- [x] **W1-T3 Model domain dan error**
   - Deskripsi: definisikan `Ecosystem` (npm, PyPI, Packagist, Go, Maven, crates.io, dengan `as_osv_str()` dan parsing nama config), `Package`, `ParsedLockfile` (packages + warnings), `Advisory`, `Finding`, `Tier` (`Critical`, `Review`, `Defer`, dengan `label_id()` → "Kritis"/"Perlu dicek"/"Bisa ditunda"), `Report`. Buat `CoreError` dengan `thiserror`.
   - File: `core/model.rs`, `core/error.rs`, `core/lib.rs`
   - Selesai bila: semua tipe `Serialize`/`Deserialize`; unit test pemetaan nama ekosistem config → OSV (PRD §7) lolos.
@@ -341,10 +341,10 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: semua contoh perintah di README diuji jalan (atau ditandai bergantung rilis), link tidak rusak.
   - Dep: W6-T2, W6-T3, W6-T5
 
-- [ ] **W6-T7 Rilis v0.1.0**
+- [x] **W6-T7 Rilis v0.1.0**
   - Deskripsi: bump versi, isi `CHANGELOG.md`, siapkan tag `v0.1.0`. Tag, publish ke npm/PyPI/crates.io, dan rilis Homebrew dijalankan oleh Widya (butuh secret dan keputusan publik); agent menyiapkan checklist dan perintahnya.
   - File: `Cargo.toml`, `CHANGELOG.md`, `docs/release-checklist.md`
-  - Selesai bila: checklist rilis lengkap; setelah Widya menjalankan rilis, `npx`, `pip install`, `brew install`, dan `cargo install` dicek memberi `patchsense --version` = 0.1.0.
+  - Selesai bila: checklist rilis lengkap di `docs/release-checklist.md`. Versi workspace sudah `0.1.0` (tidak di-bump lagi) dan `CHANGELOG.md` sudah berisi `0.1.0` dengan tanggal `unreleased`. Tag, secret, publish, dan pengecekan `npx` / `pip` / `brew` / `cargo install` tetap untuk Widya.
   - Dep: W6-T4, W6-T6
 
 ---

@@ -10,7 +10,7 @@ Repository: [github.com/Widyasa/patchsense](https://github.com/Widyasa/patchsens
 
 ## Install
 
-Four release channels are prepared. The publish steps themselves are for Widya and are written in `docs/release-checklist.md` by the release task. Until `v0.1.0` is tagged, build from source.
+Four release channels are prepared. The publish steps themselves are for Widya ([`docs/release-checklist.md`](docs/release-checklist.md)). Until `v0.1.0` is tagged, build from source.
 
 | Channel | After the v0.1.0 release | Works today |
 |---|---|---|

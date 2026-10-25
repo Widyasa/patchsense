@@ -18,7 +18,7 @@ Tests must not call the network. Use the fixtures under `tests/fixtures/` and `w
 
 Open a GitHub issue first. Use a branch `w<week>-t<task>-<slug>` for a task in [`docs/TASKS.md`](docs/TASKS.md), or another descriptive branch for other work. The pull request says `Closes #<n>`. Do not commit directly to `master`.
 
-Do not publish to crates.io, npm, PyPI, or Homebrew, and do not push git tags or create GitHub Releases. Those steps are done by Widya and are listed in `docs/release-checklist.md` once the release task adds that file. Do not add tokens or change repository settings.
+Do not publish to crates.io, npm, PyPI, or Homebrew, and do not push git tags or create GitHub Releases. Those steps are listed in [`docs/release-checklist.md`](docs/release-checklist.md) and are done by Widya. Do not add tokens or change repository settings.
 
 ## Commit messages
 

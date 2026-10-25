@@ -4,7 +4,7 @@ All notable changes to PatchSense are documented here. The format follows [Keep 
 
 ## [0.1.0] - unreleased
 
-First release. The date is filled in when the `v0.1.0` tag is created. Tagging and publishing are done by Widya. The commands live in `docs/release-checklist.md` once the release task adds that file.
+First release. The date is filled in when the `v0.1.0` tag is created. Tagging and publishing are done by Widya; see [`docs/release-checklist.md`](docs/release-checklist.md).
 
 ### Added
 
