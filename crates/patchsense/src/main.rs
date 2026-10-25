@@ -168,13 +168,25 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Command::Init(args) => {
-            let status = init::write_example_config(Path::new("."), args.force)?;
-            match status {
-                init::InitStatus::Created => println!("wrote patchsense.toml"),
-                init::InitStatus::Kept => {
-                    println!("patchsense.toml already exists; pass --force to replace it");
+            if args.print_mcp_config {
+                print!("{}", init::MCP_CONFIG);
+            }
+            if let Some(agent) = args.agent.as_deref() {
+                let target = init::AgentTarget::parse(agent)?;
+                for written in init::write_agent_instructions(Path::new("."), target)? {
+                    let verb = if written.created { "wrote" } else { "updated" };
+                    println!("{verb} {}", written.relative);
                 }
-                init::InitStatus::Replaced => println!("replaced patchsense.toml"),
+            }
+            if !args.print_mcp_config {
+                let status = init::write_example_config(Path::new("."), args.force)?;
+                match status {
+                    init::InitStatus::Created => println!("wrote patchsense.toml"),
+                    init::InitStatus::Kept => {
+                        println!("patchsense.toml already exists; pass --force to replace it");
+                    }
+                    init::InitStatus::Replaced => println!("replaced patchsense.toml"),
+                }
             }
             Ok(ExitCode::SUCCESS)
         }

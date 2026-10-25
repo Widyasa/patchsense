@@ -297,7 +297,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes memakai skrip agent palsu di PATH sementara (skrip shell/bat yang mencetak fixture) untuk sukses, timeout, dan tidak ada agent.
   - Dep: W5-T8, W4-T6
 
-- [ ] **W5-T10 `init --agent` dan `--print-mcp-config`**
+- [x] **W5-T10 `init --agent` dan `--print-mcp-config`**
   - Deskripsi: tulis blok instruksi dengan marker idempoten ke `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/patchsense.mdc` (PRD §12.1); cetak potongan konfigurasi MCP (PRD §11).
   - File: `cli/init.rs`
   - Selesai bila: tes: jalankan dua kali → satu blok saja; konten di luar marker tetap; output `--print-mcp-config` di-snapshot.
