@@ -67,7 +67,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: unit test retry memakai `FakeHttp` (tanpa jaringan) dan tes bahwa `FakeHttp::forbid()` gagal bila dipanggil.
   - Dep: W1-T3
 
-- [ ] **W1-T10 Klien OSV: querybatch**
+- [x] **W1-T10 Klien OSV: querybatch**
   - Deskripsi: kirim `POST /v1/querybatch` per chunk `OSV_BATCH_SIZE` (1000), petakan hasil kembali ke paket sesuai urutan, tangani `next_page_token`.
   - File: `core/osv.rs`, `tests/fixtures/osv/querybatch_*.json`
   - Selesai bila: tes dengan `FakeHttp` untuk chunking (mis. 2500 paket → 3 request), pagination 2 halaman, dan urutan hasil.

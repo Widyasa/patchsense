@@ -7,6 +7,7 @@ pub mod error;
 pub mod http;
 pub mod lockfile;
 pub mod model;
+pub mod osv;
 
 pub use error::CoreError;
 pub use model::{Advisory, Ecosystem, Finding, Package, ParsedLockfile, Report, Severity, Tier};
