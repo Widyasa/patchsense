@@ -223,7 +223,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot untuk laporan dengan temuan dan kosong.
   - Dep: W4-T1
 
-- [ ] **W4-T5 Output GitLab Dependency Scanning**
+- [x] **W4-T5 Output GitLab Dependency Scanning**
   - Deskripsi: cek versi skema terbaru di repo `security-report-schemas` GitLab, implementasi laporan `gl-dependency-scanning-report.json`, simpan versi sebagai konstanta.
   - File: `core/report/gitlab.rs`, `tests/schemas/`
   - Selesai bila: snapshot valid terhadap skema GitLab versi yang dipilih.
