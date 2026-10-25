@@ -20,6 +20,8 @@ pub enum Command {
     Scan(ScanArgs),
     /// Inspect or delete the local SQLite cache.
     Cache(CacheArgs),
+    /// Write an example `patchsense.toml` in the current directory.
+    Init(InitArgs),
 }
 
 /// Arguments for `patchsense cache`.
@@ -32,6 +34,14 @@ pub struct CacheArgs {
     /// Cache subcommand.
     #[command(subcommand)]
     pub command: CacheCommand,
+}
+
+/// Arguments for `patchsense init`.
+#[derive(Debug, Parser)]
+pub struct InitArgs {
+    /// Replace an existing `patchsense.toml`.
+    #[arg(long)]
+    pub force: bool,
 }
 
 /// `patchsense cache` subcommands.
