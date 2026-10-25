@@ -12,6 +12,7 @@ pub mod lockfile;
 pub mod model;
 pub mod osv;
 pub mod scan;
+pub mod score;
 
 pub use error::CoreError;
 pub use model::{Advisory, Ecosystem, Finding, Package, ParsedLockfile, Report, Severity, Tier};
