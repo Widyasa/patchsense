@@ -135,7 +135,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes: satu file rusak + satu valid → scan jalan dengan warning; semua rusak → exit 2; filter bekerja.
   - Dep: W2-T1 s/d W2-T7, W1-T12
 
-- [ ] **W2-T9 Tes properti parser (robustness)**
+- [x] **W2-T9 Tes properti parser (robustness)**
   - Deskripsi: tes bahwa setiap parser tidak panic untuk input acak/terpotong (pakai potongan fixture yang dipotong di berbagai titik; tanpa dependency fuzzing baru).
   - File: `crates/patchsense-core/tests/parser_robustness.rs`
   - Selesai bila: tes lolos untuk 9 parser.
