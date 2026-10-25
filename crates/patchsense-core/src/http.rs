@@ -135,6 +135,7 @@ async fn backoff(initial: Duration, attempt: u32) {
 }
 
 /// reqwest client using rustls. Retries 429 and 5xx up to three times.
+#[derive(Clone)]
 pub struct ReqwestClient {
     client: reqwest::Client,
     policy: RetryPolicy,

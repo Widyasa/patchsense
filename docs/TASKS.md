@@ -73,7 +73,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes dengan `FakeHttp` untuk chunking (mis. 2500 paket → 3 request), pagination 2 halaman, dan urutan hasil.
   - Dep: W1-T9
 
-- [ ] **W1-T11 Klien OSV: detail advisory**
+- [x] **W1-T11 Klien OSV: detail advisory**
   - Deskripsi: `GET /v1/vulns/{id}` paralel (konkurensi 8, `tokio` + semaphore), parse `aliases`, `summary`, `severity`, `database_specific.severity`, `affected[].ranges[].events`, `references`. Tentukan `fixed_versions` yang relevan untuk paket@versi terpasang (cocokkan `affected[].package.name`/ekosistem).
   - File: `core/osv.rs`, `tests/fixtures/osv/vulns/*.json`
   - Selesai bila: fixture asli (mis. GHSA-35jh-r3h4-6jhm untuk lodash) diparse benar: alias CVE-2021-23337, vector CVSS_V3, fixed 4.17.21; snapshot `Advisory`.

@@ -7,9 +7,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use std::sync::Arc;
+
+use tokio::sync::Semaphore;
+
 use crate::error::CoreError;
 use crate::http::{join_url, HttpClient, HttpResponse};
-use crate::model::Package;
+use crate::model::{Advisory, Package, Severity};
 
 /// Maximum number of packages in one `POST /v1/querybatch` body.
 pub const OSV_BATCH_SIZE: usize = 1000;
@@ -150,6 +154,202 @@ fn parse_querybatch(
     Ok(body.results)
 }
 
+/// How many vuln documents are fetched at once.
+pub const OSV_VULN_CONCURRENCY: usize = 8;
+
+/// Fetch advisory documents in parallel and keep `ids` order.
+pub async fn fetch_advisories<C>(
+    client: &C,
+    base_url: &str,
+    ids: &[String],
+    package: &Package,
+) -> Result<Vec<Advisory>, CoreError>
+where
+    C: HttpClient + Clone + 'static,
+{
+    let limit = OSV_VULN_CONCURRENCY.max(1);
+    let semaphore = Arc::new(Semaphore::new(limit));
+    let mut handles = Vec::with_capacity(ids.len());
+    for id in ids {
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|err| CoreError::Osv {
+                url: join_url(base_url, "/v1/vulns"),
+                message: format!("failed to acquire fetch permit: {err}"),
+            })?;
+        let client = client.clone();
+        let id = id.clone();
+        let package = package.clone();
+        let base_url = base_url.to_string();
+        handles.push(tokio::spawn(async move {
+            let result = fetch_advisory(&client, &base_url, &id, &package).await;
+            drop(permit);
+            result
+        }));
+    }
+    let mut advisories = Vec::with_capacity(handles.len());
+    for handle in handles {
+        let advisory = handle.await.map_err(|err| CoreError::Osv {
+            url: join_url(base_url, "/v1/vulns"),
+            message: format!("advisory fetch task failed: {err}"),
+        })??;
+        advisories.push(advisory);
+    }
+    Ok(advisories)
+}
+
+/// GET one advisory and compute fixed versions for `package`.
+pub async fn fetch_advisory<C: HttpClient>(
+    client: &C,
+    base_url: &str,
+    id: &str,
+    package: &Package,
+) -> Result<Advisory, CoreError> {
+    let url = join_url(base_url, &format!("/v1/vulns/{id}"));
+    let response = client.get(&url).await?;
+    if !(200..300).contains(&response.status) {
+        return Err(CoreError::Http {
+            url,
+            message: format!("status {}", response.status),
+        });
+    }
+    advisory_from_json(&url, &response.body, package)
+}
+
+/// Parse an OSV vulnerability document into an [`Advisory`].
+pub fn advisory_from_json(url: &str, body: &str, package: &Package) -> Result<Advisory, CoreError> {
+    let doc: Value = serde_json::from_str(body).map_err(|err| CoreError::Osv {
+        url: url.to_string(),
+        message: err.to_string(),
+    })?;
+    let id = doc["id"].as_str().unwrap_or("").to_string();
+    if id.is_empty() {
+        return Err(CoreError::Osv {
+            url: url.to_string(),
+            message: "advisory is missing id".to_string(),
+        });
+    }
+    let mut aliases = doc["aliases"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_string))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    aliases.sort();
+    let summary = doc["summary"].as_str().unwrap_or("").to_string();
+    let severity = doc["severity"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let kind = item["type"].as_str()?.to_string();
+                    let score = item["score"].as_str()?.to_string();
+                    Some(Severity { kind, score })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let database_specific_severity = doc["database_specific"]["severity"]
+        .as_str()
+        .map(str::to_string);
+    let mut references = doc["references"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["url"].as_str().map(str::to_string))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    references.sort();
+    let mut fixed_versions = fixed_versions_for(&doc, package);
+    fixed_versions.sort();
+    fixed_versions.dedup();
+    Ok(Advisory {
+        id,
+        aliases,
+        summary,
+        severity,
+        database_specific_severity,
+        references,
+        fixed_versions,
+    })
+}
+
+fn fixed_versions_for(doc: &Value, package: &Package) -> Vec<String> {
+    let Some(affected) = doc["affected"].as_array() else {
+        return Vec::new();
+    };
+    let mut fixed = Vec::new();
+    for entry in affected {
+        if !affected_matches(entry, package) {
+            continue;
+        }
+        let Some(ranges) = entry["ranges"].as_array() else {
+            continue;
+        };
+        for range in ranges {
+            let Some(events) = range["events"].as_array() else {
+                continue;
+            };
+            if let Some(version) = fixed_in_events(events, &package.version) {
+                fixed.push(version);
+            }
+        }
+    }
+    fixed
+}
+
+fn affected_matches(entry: &Value, package: &Package) -> bool {
+    let name = entry["package"]["name"].as_str().unwrap_or("");
+    let ecosystem = entry["package"]["ecosystem"].as_str().unwrap_or("");
+    name == package.name && ecosystem.eq_ignore_ascii_case(package.ecosystem.as_osv_str())
+}
+
+fn fixed_in_events(events: &[Value], installed: &str) -> Option<String> {
+    let mut introduced: Option<String> = None;
+    for event in events {
+        if let Some(start) = event["introduced"].as_str() {
+            introduced = Some(start.to_string());
+        } else if let Some(fixed) = event["fixed"].as_str() {
+            if let Some(start) = introduced.as_deref() {
+                if version_in_half_open(installed, start, fixed) {
+                    return Some(fixed.to_string());
+                }
+            }
+            introduced = None;
+        } else if event["last_affected"].is_string() {
+            introduced = None;
+        }
+    }
+    None
+}
+
+fn version_in_half_open(installed: &str, start: &str, end: &str) -> bool {
+    match (
+        parse_osv_version(installed),
+        parse_osv_version(start),
+        parse_osv_version(end),
+    ) {
+        (Some(installed), Some(start), Some(end)) => installed >= start && installed < end,
+        _ => false,
+    }
+}
+
+fn parse_osv_version(value: &str) -> Option<semver::Version> {
+    let trimmed = value.trim().trim_start_matches('v');
+    if trimmed.is_empty() || trimmed == "0" || trimmed == "*" {
+        return Some(semver::Version::new(0, 0, 0));
+    }
+    semver::Version::parse(trimmed).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,5 +471,124 @@ mod tests {
         assert!(found[0].iter().any(|vuln| vuln.id == "GHSA-35jh-r3h4-6jhm"));
         assert!(found[1].is_empty());
         assert_eq!(fake.recorded().len(), 1);
+    }
+
+    fn lodash_package(version: &str) -> Package {
+        Package {
+            version: version.to_string(),
+            ..package("lodash")
+        }
+    }
+
+    #[tokio::test]
+    async fn lodash_advisory_fixture_has_cve_vector_and_fix() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/osv/vulns/GHSA-35jh-r3h4-6jhm.json");
+        let body = fs::read_to_string(&path).expect("fixture");
+        let fake = FakeHttp::with_handler(move |request: &RecordedRequest| {
+            assert!(request.url.ends_with("/v1/vulns/GHSA-35jh-r3h4-6jhm"));
+            HttpResponse {
+                status: 200,
+                body: body.clone(),
+            }
+        });
+        let vulnerable = lodash_package("4.17.15");
+        let advisories = fetch_advisories(
+            &fake,
+            "https://api.osv.dev",
+            &["GHSA-35jh-r3h4-6jhm".to_string()],
+            &vulnerable,
+        )
+        .await
+        .expect("fetch");
+        assert_eq!(advisories.len(), 1);
+        let advisory = &advisories[0];
+        assert_eq!(advisory.aliases, vec!["CVE-2021-23337".to_string()]);
+        assert!(advisory.severity.iter().any(|item| item.kind == "CVSS_V3"
+            && item.score == "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H"));
+        assert_eq!(advisory.fixed_versions, vec!["4.17.21".to_string()]);
+        assert_eq!(advisory.database_specific_severity.as_deref(), Some("HIGH"));
+        insta::assert_yaml_snapshot!("lodash_advisory", advisory);
+
+        let fixed = lodash_package("4.17.21");
+        let parsed = advisory_from_json("fixture", &fs::read_to_string(&path).unwrap(), &fixed)
+            .expect("parse");
+        assert!(parsed.fixed_versions.is_empty());
+    }
+
+    /// Holds each GET until `release` is true, and records the peak in-flight count.
+    #[derive(Clone)]
+    struct InflightClient {
+        current: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        peak: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        release: tokio::sync::watch::Receiver<bool>,
+    }
+
+    #[async_trait::async_trait]
+    impl HttpClient for InflightClient {
+        async fn get(&self, url: &str) -> Result<HttpResponse, CoreError> {
+            use std::sync::atomic::Ordering;
+            let now = self.current.fetch_add(1, Ordering::SeqCst) + 1;
+            self.peak.fetch_max(now, Ordering::SeqCst);
+            let mut release = self.release.clone();
+            while !*release.borrow() {
+                if release.changed().await.is_err() {
+                    break;
+                }
+            }
+            self.current.fetch_sub(1, Ordering::SeqCst);
+            let id = url.rsplit('/').next().unwrap_or("missing");
+            Ok(HttpResponse {
+                status: 200,
+                body: format!(r#"{{"id":"{id}","affected":[]}}"#),
+            })
+        }
+
+        async fn post_json(
+            &self,
+            url: &str,
+            _body: &serde_json::Value,
+        ) -> Result<HttpResponse, CoreError> {
+            Err(CoreError::Http {
+                url: url.to_string(),
+                message: "post is unused".to_string(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn advisory_fetches_stay_at_eight_in_flight_and_keep_order() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        let current = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let client = InflightClient {
+            current: Arc::clone(&current),
+            peak: Arc::clone(&peak),
+            release: rx,
+        };
+        let ids: Vec<String> = (0..10).map(|index| format!("ID-{index}")).collect();
+        let package = package("lodash");
+        let fetch = tokio::spawn(async move {
+            fetch_advisories(&client, "https://api.osv.dev", &ids, &package).await
+        });
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while current.load(Ordering::SeqCst) < OSV_VULN_CONCURRENCY {
+            assert!(Instant::now() < deadline, "timed out waiting for 8 fetches");
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert_eq!(current.load(Ordering::SeqCst), OSV_VULN_CONCURRENCY);
+        assert_eq!(peak.load(Ordering::SeqCst), OSV_VULN_CONCURRENCY);
+        tx.send(true).expect("release fetches");
+        let advisories = fetch.await.expect("join").expect("fetch");
+        let got: Vec<&str> = advisories.iter().map(|item| item.id.as_str()).collect();
+        assert_eq!(
+            got,
+            vec!["ID-0", "ID-1", "ID-2", "ID-3", "ID-4", "ID-5", "ID-6", "ID-7", "ID-8", "ID-9"]
+        );
     }
 }
