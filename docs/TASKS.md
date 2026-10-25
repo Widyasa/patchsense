@@ -205,7 +205,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot `insta` JSON (redaksi `generated_at`, `fetched_at`) lolos dan valid terhadap schema.
   - Dep: W3-T9
 
-- [ ] **W4-T2 Tabel terminal**
+- [x] **W4-T2 Tabel terminal**
   - Deskripsi: `comfy-table` dengan kolom PRD AC6.1, warna per tier hanya di TTY, `--no-color`/`NO_COLOR`, ringkasan jumlah per tier di bawah tabel, `--min-score`. Progress `indicatif` di stderr hanya bila TTY.
   - File: `cli/table.rs`, `cli/progress.rs`
   - Selesai bila: snapshot tabel tanpa warna lolos; tes bahwa non-TTY tidak mencetak escape code.
