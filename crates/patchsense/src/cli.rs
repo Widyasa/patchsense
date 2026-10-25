@@ -24,6 +24,8 @@ pub enum Command {
     Init(InitArgs),
     /// Create or update a pull-request comment from a JSON report.
     Comment(CommentArgs),
+    /// Run the MCP server on stdio.
+    Mcp,
 }
 
 /// Arguments for `patchsense cache`.

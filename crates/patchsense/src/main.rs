@@ -3,6 +3,7 @@
 mod cli;
 mod comment;
 mod init;
+mod mcp;
 mod progress;
 mod table;
 
@@ -11,6 +12,7 @@ use std::process::ExitCode;
 
 use anyhow::Context;
 use clap::Parser;
+use rmcp::ServiceExt;
 
 use patchsense_core::cache::{self, resolve_cache_db, Cache, CacheLocation};
 use patchsense_core::config::{self, FailOn, FlagInput, LoadRequest};
@@ -114,6 +116,17 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             }
         }
         Command::Comment(args) => comment::run(args).await,
+        Command::Mcp => {
+            let running = mcp::McpServer
+                .serve(rmcp::transport::stdio())
+                .await
+                .context("failed to start the MCP server")?;
+            running
+                .waiting()
+                .await
+                .context("MCP server stopped unexpectedly")?;
+            Ok(ExitCode::SUCCESS)
+        }
         Command::Init(args) => {
             let status = init::write_example_config(Path::new("."), args.force)?;
             match status {
