@@ -323,10 +323,10 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: `maturin build --release` lokal menghasilkan wheel dan `pip install` wheel itu memberi perintah `patchsense` yang jalan.
   - Dep: W6-T1
 
-- [ ] **W6-T4 Persiapan publish crates.io**
+- [x] **W6-T4 Persiapan publish crates.io**
   - Deskripsi: metadata (`description`, `repository`, `keywords`, `categories`, `readme`), `cargo publish --dry-run` untuk `patchsense-core` lalu `patchsense`.
   - File: `crates/*/Cargo.toml`
-  - Selesai bila: kedua dry-run sukses.
+  - Selesai bila: kedua dry-run sukses. `patchsense-core` dry-run sukses. `patchsense` sudah memakai `version = "0.1.0"` pada dependency path, tetapi dry-run crates.io tertahan sampai `patchsense-core` 0.1.0 benar-benar terbit (langkah Widya, agent tidak publish).
   - Dep: W6-T1
 
 - [ ] **W6-T5 Demo PHP2Shell dan GIF**
