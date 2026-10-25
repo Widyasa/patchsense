@@ -217,7 +217,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot lolos dan valid terhadap skema SARIF 2.1.0 (simpan salinan skema di `tests/schemas/`).
   - Dep: W4-T1
 
-- [ ] **W4-T4 Output markdown**
+- [x] **W4-T4 Output markdown**
   - Deskripsi: marker `<!-- patchsense-report -->`, ringkasan per tier, tabel top-N, `<details>` per temuan dengan breakdown skor dan link, pesan "Tidak ada kerentanan" bila kosong.
   - File: `core/report/markdown.rs`
   - Selesai bila: snapshot untuk laporan dengan temuan dan kosong.

@@ -1,0 +1,33 @@
+---
+source: crates/patchsense-core/src/report/markdown.rs
+expression: filled
+---
+<!-- patchsense-report -->
+
+## Ringkasan
+
+| Tingkat | Jumlah |
+| --- | ---: |
+| Kritis | 0 |
+| Perlu dicek | 0 |
+| Bisa ditunda | 1 |
+
+## Temuan
+
+| Skor | Tingkat | Paket | Versi | Advisory |
+| ---: | --- | --- | --- | --- |
+| 37 | Bisa ditunda | lodash | 4.17.15 | GHSA-35jh-r3h4-6jhm |
+
+<details>
+<summary>GHSA-35jh-r3h4-6jhm lodash@4.17.15 — skor 37 (Bisa ditunda)</summary>
+
+Command Injection in lodash
+
+- KEV: 0
+- EPSS: 3.075
+- CVSS: 14.4
+- direct: 10
+- fix: 10
+
+- https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm
+</details>

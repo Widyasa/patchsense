@@ -2,7 +2,9 @@
 //! turn it into the documents CI and reviewers consume.
 
 pub mod json;
+pub mod markdown;
 pub mod sarif;
 
 pub use json::render_json;
+pub use markdown::render_markdown;
 pub use sarif::render_sarif;
