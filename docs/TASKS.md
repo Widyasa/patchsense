@@ -37,7 +37,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: unit test pemetaan nama file → parser untuk 9 nama file di PRD §5.1 (parser belum ada boleh `todo` di balik feature internal, atau registry diisi bertahap).
   - Dep: W1-T3
 
-- [ ] **W1-T5 Discovery lockfile**
+- [x] **W1-T5 Discovery lockfile**
   - Deskripsi: telusuri direktori rekursif, lewati `node_modules`, `vendor`, `target`, `.git`, `.venv`, `venv`, dan glob `--exclude`. Bila `PATH` adalah file, kembalikan file itu saja.
   - File: `core/discovery.rs`, `tests/fixtures/discovery/`
   - Selesai bila: tes dengan `tempfile` membuktikan direktori default dilewati, exclude bekerja, dan urutan hasil deterministik (diurutkan).
