@@ -1,6 +1,8 @@
 //! PatchSense binary.
 
 mod cli;
+mod progress;
+mod table;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -88,8 +90,12 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 kev_feed_url: kev_feed_url(),
             };
             let client = ReqwestClient::new().context("failed to build the HTTP client")?;
+            let progress = progress::start_scan_progress(progress::stderr_is_tty());
             let report = scan_with(&client, &osv_base_url(), &path, &options).await?;
-            print_report(&report);
+            if let Some(bar) = &progress {
+                bar.finish_and_clear();
+            }
+            print_report(&report, args.no_color, args.min_score.unwrap_or(0));
             if report.summary.failed {
                 Ok(ExitCode::from(1))
             } else {
@@ -150,20 +156,31 @@ fn cache_db_path(flag: Option<&Path>) -> PathBuf {
     })
 }
 
-fn print_report(report: &Report) {
-    for finding in &report.findings {
-        let aliases = finding.advisory.aliases.join(",");
-        let fixed = finding.advisory.fixed_versions.join(",");
-        println!(
-            "{}  {}@{}  {}  aliases={}  fixed={}  {}",
-            finding.package.source_file,
-            finding.package.name,
-            finding.package.version,
-            finding.advisory.id,
-            aliases,
-            fixed,
-            finding.advisory.summary
-        );
+fn print_report(report: &Report, no_color: bool, min_score: u32) {
+    let stdout_tty = progress::stdout_is_tty();
+    let color =
+        progress::colors_enabled(no_color, std::env::var_os("NO_COLOR").is_some(), stdout_tty);
+    if stdout_tty {
+        print!("{}", table::render_table(report, color, min_score));
+    } else {
+        for finding in report
+            .findings
+            .iter()
+            .filter(|finding| finding.score >= min_score)
+        {
+            let aliases = finding.advisory.aliases.join(",");
+            let fixed = finding.advisory.fixed_versions.join(",");
+            println!(
+                "{}  {}@{}  {}  aliases={}  fixed={}  {}",
+                finding.package.source_file,
+                finding.package.name,
+                finding.package.version,
+                finding.advisory.id,
+                aliases,
+                fixed,
+                finding.advisory.summary
+            );
+        }
     }
     for warning in &report.warnings {
         eprintln!("warning: {warning}");

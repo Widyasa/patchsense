@@ -88,4 +88,12 @@ pub struct ScanArgs {
     /// Extra paths to skip. Repeatable. Added to `scan.exclude` from the config file.
     #[arg(long, action = ArgAction::Append)]
     pub exclude: Vec<String>,
+
+    /// Hide findings below this score. Does not change the exit code.
+    #[arg(long, value_name = "N")]
+    pub min_score: Option<u32>,
+
+    /// Do not color the table. Also honored when `NO_COLOR` is set.
+    #[arg(long)]
+    pub no_color: bool,
 }
