@@ -305,10 +305,10 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 ## Minggu 6: Rilis (cargo-dist, npm, pip, Homebrew, README, v0.1.0)
 
-- [ ] **W6-T1 Finalisasi nama dan owner**
+- [x] **W6-T1 Finalisasi nama dan owner**
   - Deskripsi: minta keputusan Widya soal nama paket npm/PyPI (PRD §15, §17). Jangan lanjut ke W6-T3/W6-T4 sebelum ada keputusan. Update semua placeholder `patchsense`, `patchsense`, `Widyasa`.
   - File: `Cargo.toml`, `pyproject.toml`, `action.yml`, docs
-  - Selesai bila: nama tertulis di PRD/README dan tidak ada placeholder tersisa (`rg 'Widyasa'` kosong).
+  - Selesai bila: nama tertulis di PRD/README. Keputusan W6-T1: paket `patchsense` tanpa scope npm, owner `Widyasa`. `rg 'Widyasa'` tidak dikosongkan karena itu owner yang dikunci, bukan placeholder.
   - Dep: –  (boleh diminta sejak awal)
 
 - [ ] **W6-T2 cargo-dist**

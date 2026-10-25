@@ -26,6 +26,8 @@ Hasilnya tampil sebagai tabel terminal, JSON, SARIF, laporan GitLab Dependency S
 | Distribusi | cargo-dist (biner Linux/macOS/Windows, installer npm, Homebrew), maturin untuk pip, `cargo install` |
 | AI | Opsional, tanpa API key milik PatchSense: `patchsense mcp` (jalur utama), `patchsense scan --explain`, `patchsense init --agent` |
 | Lisensi | `MIT OR Apache-2.0` (file `LICENSE-MIT` dan `LICENSE-APACHE`) |
+| Nama paket | `patchsense` di npm, PyPI, crates.io, Homebrew, dan nama biner. Tanpa scope npm, supaya `npx patchsense` jalan |
+| Owner | Akun GitHub `Widyasa` (`github.com/Widyasa/patchsense`). Tap Homebrew `Widyasa/homebrew-tap` |
 | Target MVP | 6 minggu |
 
 ---
@@ -690,7 +692,7 @@ Catatan: tampilan laporan Dependency Scanning di UI MR butuh GitLab Ultimate; di
 | pip | maturin dengan `bindings = "bin"` (https://www.maturin.rs/bindings.html) | Workflow terpisah `pypi.yml` membangun wheel untuk OS yang sama dan publish via trusted publishing |
 | cargo | `cargo install patchsense` | Publish `patchsense-core` dulu, lalu `patchsense` |
 
-**Nama paket:** nama `patchsense` dipakai seragam di npm, PyPI, crates.io, Homebrew, dan nama biner. Per 25 Okt 2026, nama itu masih kosong di keempat registry tersebut. Cek ulang tepat sebelum publish.
+**Nama paket:** nama `patchsense` dipakai seragam di npm, PyPI, crates.io, Homebrew, dan nama biner, tanpa scope npm. Keputusan ini dikunci di W6-T1 (bagian 1.2 dan 17). Per 25 Okt 2026 nama itu masih kosong di keempat registry. Cek ulang tepat sebelum publish.
 
 Rilis dipicu tag `v*`. `release.yml` dihasilkan `dist init` (jangan ditulis manual kecuali perlu). Publish ke registry butuh secret (`NPM_TOKEN`, `CARGO_REGISTRY_TOKEN`, trusted publishing PyPI) yang disiapkan Widya sendiri; agent tidak boleh membuat atau meminta token.
 
@@ -710,7 +712,7 @@ Rilis dipicu tag `v*`. `release.yml` dihasilkan `dist init` (jangan ditulis manu
 | Tidak ada agent di CI | Laporan tetap keluar tanpa AI; dokumentasikan cara memakai action agent resmi |
 | `pom.xml` tanpa resolusi transitif dan properti parent | Dokumentasikan keterbatasannya; Gradle dan resolusi penuh ditunda |
 | `requirements.txt` tidak dipin | Lewati dengan peringatan dan sarankan `pip freeze` atau `poetry.lock` |
-| Bentrok nama "PatchSense" di npm/PyPI | Putuskan nama paket sebelum minggu 6 (bagian 17) |
+| Bentrok nama "PatchSense" di npm/PyPI | Nama dikunci `patchsense` di W6-T1. Cek ulang registry tepat sebelum publish |
 | URL dokumentasi EPSS lama (`www.first.org/epss/api`) sekarang 404 | Pakai https://api.first.org/epss/ dan https://www.first.org/epss/data.html |
 
 ---
@@ -719,8 +721,8 @@ Rilis dipicu tag `v*`. `release.yml` dihasilkan `dist init` (jangan ditulis manu
 
 Keputusan yang belum ada di rancangan dan perlu konfirmasi Widya (agent memakai default di bawah sampai diputuskan):
 
-1. **Nama paket**: sudah diputuskan, yaitu `patchsense` di semua registry. Di draf awal produk ini bernama VulnRadar.
-2. **Owner GitHub repo**: sudah diputuskan, yaitu akun `Widyasa` (`github.com/Widyasa/patchsense`).
+1. **Nama paket**: dikunci di W6-T1, yaitu `patchsense` di semua registry, tanpa scope npm. Di draf awal produk ini bernama VulnRadar. String `Widyasa` di repo ini adalah owner, bukan placeholder.
+2. **Owner GitHub repo**: dikunci di W6-T1, yaitu akun `Widyasa` (`github.com/Widyasa/patchsense`).
 3. **Default `--fail-on`**: diasumsikan `critical`.
 4. **Mode EPSS**: diasumsikan `probability` dengan saturation 0.10.
 5. **Direct tidak diketahui**: diasumsikan dihitung penuh (konservatif).
