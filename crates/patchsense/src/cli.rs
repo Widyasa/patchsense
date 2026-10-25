@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use clap::{ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 
 /// Prioritize vulnerabilities from lockfiles using OSV, EPSS, and CISA KEV.
 #[derive(Debug, Parser)]
@@ -96,4 +96,35 @@ pub struct ScanArgs {
     /// Do not color the table. Also honored when `NO_COLOR` is set.
     #[arg(long)]
     pub no_color: bool,
+
+    /// Report format. Repeatable. Paired with `--output` in the same order.
+    ///
+    /// With no `--format`, a TTY gets `table` and a pipe or file gets `json`.
+    #[arg(
+        short = 'f',
+        long = "format",
+        value_enum,
+        action = ArgAction::Append,
+        value_name = "FORMAT"
+    )]
+    pub format: Vec<ReportFormat>,
+
+    /// Write the paired `--format` to this file instead of stdout. Repeatable.
+    #[arg(short = 'o', long = "output", action = ArgAction::Append, value_name = "FILE")]
+    pub output: Vec<PathBuf>,
+}
+
+/// One scan report format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum ReportFormat {
+    /// Priority table.
+    Table,
+    /// PRD JSON report.
+    Json,
+    /// SARIF 2.1.0.
+    Sarif,
+    /// Markdown comment body.
+    Markdown,
+    /// GitLab dependency scanning report.
+    Gitlab,
 }
