@@ -675,6 +675,43 @@ fn slash_path(path: &Path) -> String {
         .join("/")
 }
 
+/// Smallest version that is at least every advisory's lowest fixed version.
+///
+/// Each inner list is one advisory. The floor of a list is its lowest semver
+/// entry (`v` prefixes are accepted). The result is the highest of those
+/// floors, returned with the spelling it had in the input. `None` when any
+/// advisory has no parseable fixed version, because no single upgrade is known
+/// to close that advisory.
+pub fn minimum_covering_fix(fixed_lists: &[Vec<String>]) -> Option<String> {
+    if fixed_lists.is_empty() {
+        return None;
+    }
+    let mut floors = Vec::with_capacity(fixed_lists.len());
+    for list in fixed_lists {
+        let mut parsed: Vec<(semver::Version, String)> = list
+            .iter()
+            .filter_map(|raw| parse_fix_version(raw).map(|version| (version, raw.clone())))
+            .collect();
+        if parsed.is_empty() {
+            return None;
+        }
+        parsed.sort_by(|left, right| left.0.cmp(&right.0));
+        floors.push(parsed.remove(0));
+    }
+    floors
+        .into_iter()
+        .max_by(|left, right| left.0.cmp(&right.0))
+        .map(|(_, raw)| raw)
+}
+
+fn parse_fix_version(value: &str) -> Option<semver::Version> {
+    let trimmed = value.trim().trim_start_matches('v');
+    if trimmed.is_empty() {
+        return None;
+    }
+    semver::Version::parse(trimmed).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1015,6 +1052,37 @@ mod tests {
                 .any(|warning| warning.contains("offline:")),
             "{:?}",
             report.warnings
+        );
+    }
+
+    #[test]
+    fn minimum_covering_fix_picks_the_highest_floor() {
+        let recommended = minimum_covering_fix(&[
+            vec!["4.17.21".to_string(), "4.18.0".to_string()],
+            vec!["4.17.20".to_string()],
+        ]);
+        assert_eq!(recommended.as_deref(), Some("4.17.21"));
+    }
+
+    #[test]
+    fn minimum_covering_fix_uses_the_other_advisory_when_it_is_higher() {
+        let recommended = minimum_covering_fix(&[
+            vec!["v1.2.3".to_string()],
+            vec!["1.4.0".to_string(), "1.9.0".to_string()],
+        ]);
+        assert_eq!(recommended.as_deref(), Some("1.4.0"));
+    }
+
+    #[test]
+    fn minimum_covering_fix_is_none_without_a_parseable_fix() {
+        assert_eq!(minimum_covering_fix(&[]), None);
+        assert_eq!(
+            minimum_covering_fix(&[vec!["1.0.0".to_string()], vec![]]),
+            None
+        );
+        assert_eq!(
+            minimum_covering_fix(&[vec!["not-semver".to_string()]]),
+            None
         );
     }
 }
