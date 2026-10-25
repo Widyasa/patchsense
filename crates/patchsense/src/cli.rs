@@ -18,6 +18,29 @@ pub struct Cli {
 pub enum Command {
     /// Scan lockfiles and print matching advisories.
     Scan(ScanArgs),
+    /// Inspect or delete the local SQLite cache.
+    Cache(CacheArgs),
+}
+
+/// Arguments for `patchsense cache`.
+#[derive(Debug, Parser)]
+pub struct CacheArgs {
+    /// Directory that contains `cache.db`. Overrides `PATCHSENSE_CACHE_DIR`.
+    #[arg(long)]
+    pub cache_dir: Option<PathBuf>,
+
+    /// Cache subcommand.
+    #[command(subcommand)]
+    pub command: CacheCommand,
+}
+
+/// `patchsense cache` subcommands.
+#[derive(Debug, Subcommand)]
+pub enum CacheCommand {
+    /// Delete `cache.db`.
+    Clear,
+    /// Print the cache path, schema version, and row counts.
+    Info,
 }
 
 /// Arguments for `patchsense scan`.
@@ -41,4 +64,16 @@ pub struct ScanArgs {
     /// Skip dependencies the parser marked as dev.
     #[arg(long)]
     pub no_dev: bool,
+
+    /// Use only the local cache. Do not call OSV.
+    #[arg(long)]
+    pub offline: bool,
+
+    /// Do not read or write the cache.
+    #[arg(long)]
+    pub no_cache: bool,
+
+    /// Directory that contains `cache.db`. Overrides `PATCHSENSE_CACHE_DIR`.
+    #[arg(long)]
+    pub cache_dir: Option<PathBuf>,
 }

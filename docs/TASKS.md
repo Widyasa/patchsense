@@ -149,7 +149,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes dengan DB di `tempfile` untuk TTL kedaluwarsa, invalidasi `modified`, dan reset skema.
   - Dep: W1-T3
 
-- [ ] **W3-T2 Integrasi cache ke klien OSV**
+- [x] **W3-T2 Integrasi cache ke klien OSV**
   - Deskripsi: detail advisory dibaca dari cache bila `modified` sama dan TTL belum lewat. Mode `--offline`, `--no-cache`, `--cache-dir`, dan `patchsense cache clear|info`.
   - File: `core/osv.rs`, `core/scan.rs`, `cli/cli.rs`
   - Selesai bila: tes: scan kedua tidak memanggil `/v1/vulns` (dihitung via `FakeHttp`); `--offline` dengan `FakeHttp::forbid()` lolos.

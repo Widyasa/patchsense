@@ -10,11 +10,12 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use rusqlite::{Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
 
 use crate::error::CoreError;
 
 /// `meta.schema_version`. Bump this when the tables change shape.
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 /// Default TTL from the product spec: 24 hours.
 pub const DEFAULT_TTL: Duration = Duration::from_secs(24 * 60 * 60);
@@ -32,6 +33,30 @@ pub struct EpssEntry {
     pub date: String,
     /// Unix seconds when the row was stored.
     pub fetched_at: i64,
+}
+
+/// One OSV id returned for a package query, plus the document `modified` time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CachedOsvRef {
+    /// OSV id.
+    pub id: String,
+    /// OSV `modified` timestamp.
+    pub modified: String,
+}
+
+/// Row counts for `patchsense cache info`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CacheStats {
+    /// `meta.schema_version`.
+    pub schema_version: i64,
+    /// Rows in `osv_vuln`.
+    pub osv_vuln: i64,
+    /// Rows in `epss`.
+    pub epss: i64,
+    /// Rows in `kev`.
+    pub kev: i64,
+    /// Rows in `osv_query`.
+    pub osv_query: i64,
 }
 
 /// The cached KEV catalog document.
@@ -211,6 +236,75 @@ impl Cache {
         Ok(row.filter(|entry| fresh(entry.fetched_at, now, ttl)))
     }
 
+    /// Cached `querybatch` ids for one package inside `ttl`.
+    pub fn get_osv_query(
+        &self,
+        ecosystem: &str,
+        name: &str,
+        version: &str,
+        now: i64,
+        ttl: Duration,
+    ) -> Result<Option<Vec<CachedOsvRef>>, CoreError> {
+        let row = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT ids_json, fetched_at FROM osv_query WHERE ecosystem = ?1 AND name = ?2 AND version = ?3",
+                (ecosystem, name, version),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+        })?;
+        let Some((json, _)) = row.filter(|(_, fetched_at)| fresh(*fetched_at, now, ttl)) else {
+            return Ok(None);
+        };
+        let refs: Vec<CachedOsvRef> =
+            serde_json::from_str(&json).map_err(|err| CoreError::Cache {
+                path: self.path.clone(),
+                message: format!(
+                    "osv_query for {ecosystem} {name}@{version} is invalid JSON: {err}"
+                ),
+            })?;
+        Ok(Some(refs))
+    }
+
+    /// Insert or replace the `querybatch` ids for one package.
+    pub fn put_osv_query(
+        &self,
+        ecosystem: &str,
+        name: &str,
+        version: &str,
+        refs: &[CachedOsvRef],
+        fetched_at: i64,
+    ) -> Result<(), CoreError> {
+        let json = serde_json::to_string(refs).map_err(|err| CoreError::Cache {
+            path: self.path.clone(),
+            message: err.to_string(),
+        })?;
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO osv_query (ecosystem, name, version, ids_json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                (ecosystem, name, version, json, fetched_at),
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Row counts. The caller has already opened a current schema.
+    pub fn stats(&self) -> Result<CacheStats, CoreError> {
+        self.with_conn(|conn| {
+            Ok(CacheStats {
+                schema_version: conn.query_row(
+                    "SELECT schema_version FROM meta LIMIT 1",
+                    [],
+                    |row| row.get(0),
+                )?,
+                osv_vuln: count(conn, "osv_vuln")?,
+                epss: count(conn, "epss")?,
+                kev: count(conn, "kev")?,
+                osv_query: count(conn, "osv_query")?,
+            })
+        })
+    }
+
     /// Insert or replace a KEV catalog.
     pub fn put_kev(&self, entry: &KevEntry) -> Result<(), CoreError> {
         self.with_conn(|conn| {
@@ -277,6 +371,7 @@ fn ensure_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         DROP TABLE IF EXISTS osv_vuln;
         DROP TABLE IF EXISTS epss;
         DROP TABLE IF EXISTS kev;
+        DROP TABLE IF EXISTS osv_query;
         CREATE TABLE meta (schema_version INTEGER NOT NULL);
         CREATE TABLE osv_vuln (
             id TEXT PRIMARY KEY,
@@ -295,6 +390,14 @@ fn ensure_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
             catalog_version TEXT PRIMARY KEY,
             json TEXT NOT NULL,
             fetched_at INTEGER NOT NULL
+        );
+        CREATE TABLE osv_query (
+            ecosystem TEXT NOT NULL,
+            name TEXT NOT NULL,
+            version TEXT NOT NULL,
+            ids_json TEXT NOT NULL,
+            fetched_at INTEGER NOT NULL,
+            PRIMARY KEY (ecosystem, name, version)
         );
         ",
     )?;
@@ -321,6 +424,25 @@ fn read_schema_version(conn: &Connection) -> Result<Option<i64>, rusqlite::Error
         row.get(0)
     })
     .optional()
+}
+
+fn count(conn: &Connection, table: &str) -> Result<i64, rusqlite::Error> {
+    // Table names are fixed literals from `stats`. They are not user input.
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get(0)
+    })
+}
+
+/// Delete `path` when it exists. Missing files are success.
+pub fn remove_cache_db(path: &Path) -> Result<bool, CoreError> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    fs::remove_file(path).map_err(|source| CoreError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    Ok(true)
 }
 
 fn cache_err(path: &Path, err: impl std::fmt::Display) -> CoreError {
