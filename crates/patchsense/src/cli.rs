@@ -20,7 +20,7 @@ pub enum Command {
     Scan(ScanArgs),
     /// Inspect or delete the local SQLite cache.
     Cache(CacheArgs),
-    /// Write an example `patchsense.toml` in the current directory.
+    /// Write an example config, agent instructions, or MCP snippets.
     Init(InitArgs),
     /// Create or update a pull-request comment from a JSON report.
     Comment(CommentArgs),
@@ -66,6 +66,21 @@ pub struct InitArgs {
     /// Replace an existing `patchsense.toml`.
     #[arg(long)]
     pub force: bool,
+
+    /// Write the instruction block for `all` (the default), `codex`, `claude`, or `cursor`.
+    ///
+    /// `--agent` with no value means `all`.
+    #[arg(
+        long,
+        num_args = 0..=1,
+        default_missing_value = "all",
+        value_name = "AGENT"
+    )]
+    pub agent: Option<String>,
+
+    /// Print MCP snippets for Cursor, Claude Code, and Codex. Does not write a config file.
+    #[arg(long)]
+    pub print_mcp_config: bool,
 }
 
 /// `patchsense cache` subcommands.

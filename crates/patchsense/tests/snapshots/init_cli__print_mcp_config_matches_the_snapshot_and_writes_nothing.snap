@@ -1,0 +1,21 @@
+---
+source: crates/patchsense/tests/init_cli.rs
+expression: stdout
+---
+# Cursor: .cursor/mcp.json
+{
+  "mcpServers": {
+    "patchsense": {
+      "command": "patchsense",
+      "args": ["mcp"]
+    }
+  }
+}
+
+# Claude Code
+claude mcp add --transport stdio patchsense -- patchsense mcp
+
+# Codex: ~/.codex/config.toml
+[mcp_servers.patchsense]
+command = "patchsense"
+args = ["mcp"]
