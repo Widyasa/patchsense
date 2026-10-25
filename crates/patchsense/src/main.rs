@@ -83,12 +83,7 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 enrich: true,
                 fail_on: loaded.config.scan.fail_on,
                 score: loaded.config.score.clone(),
-                ignore_ids: loaded
-                    .config
-                    .ignore
-                    .iter()
-                    .map(|rule| rule.id.clone())
-                    .collect(),
+                ignore: loaded.config.ignore.clone(),
                 epss_base_url: epss_base_url(),
                 kev_feed_url: kev_feed_url(),
             };

@@ -199,7 +199,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 ## Minggu 4: Output (tabel, JSON, SARIF, markdown, GitLab)
 
-- [ ] **W4-T1 Output JSON dan JSON Schema**
+- [x] **W4-T1 Output JSON dan JSON Schema**
   - Deskripsi: serialisasi `Report` sesuai PRD §8, tulis `schemas/report.v1.json`, dan validasi output terhadap schema di tes (boleh dengan dev-dependency validator JSON Schema, atau tes struktur manual bila ingin menghindari dependency).
   - File: `core/report/json.rs`, `schemas/report.v1.json`
   - Selesai bila: snapshot `insta` JSON (redaksi `generated_at`, `fetched_at`) lolos dan valid terhadap schema.
