@@ -249,7 +249,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes dengan HTTP palsu: buat baru, edit yang ada, dan tidak duplikat.
   - Dep: W4-T4
 
-- [ ] **W5-T2 `patchsense comment` untuk GitLab**
+- [x] **W5-T2 `patchsense comment` untuk GitLab**
   - Deskripsi: Notes API MR dengan `GITLAB_TOKEN`, `CI_API_V4_URL`, `CI_PROJECT_ID`, `CI_MERGE_REQUEST_IID`; upsert berdasarkan marker.
   - File: `cli/comment/gitlab.rs`
   - Selesai bila: tes HTTP palsu untuk buat dan edit; token kosong → pesan jelas dan exit 2.

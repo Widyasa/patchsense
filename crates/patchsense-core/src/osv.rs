@@ -694,6 +694,17 @@ mod tests {
                 message: "patch is unused".to_string(),
             })
         }
+
+        async fn put_json(
+            &self,
+            url: &str,
+            _body: &serde_json::Value,
+        ) -> Result<HttpResponse, CoreError> {
+            Err(CoreError::Http {
+                url: url.to_string(),
+                message: "put is unused".to_string(),
+            })
+        }
     }
 
     #[tokio::test]

@@ -3,6 +3,7 @@
 //! GitHub is implemented here. GitLab notes land in the next task.
 
 mod github;
+mod gitlab;
 
 use std::process::ExitCode;
 
@@ -54,9 +55,19 @@ pub async fn run(args: CommentArgs) -> anyhow::Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Provider::Gitlab => anyhow::bail!(
-            "GitLab comments are not available yet; pass --provider github or wait for that task"
-        ),
+        Provider::Gitlab => {
+            let target = gitlab::target_from_env()?;
+            let client = ReqwestClient::with_private_token(&target.token)
+                .context("failed to build the GitLab HTTP client")?;
+            match gitlab::upsert(&client, &target, &markdown).await? {
+                CommentOutcome::Created(id) => println!("created GitLab note {id}"),
+                CommentOutcome::Updated(id) => println!("updated GitLab note {id}"),
+                CommentOutcome::Forbidden => {
+                    eprintln!("warning: GitLab returned HTTP 403, so the note was not written.");
+                }
+            }
+            Ok(ExitCode::SUCCESS)
+        }
     }
 }
 

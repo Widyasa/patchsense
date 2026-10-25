@@ -6,6 +6,28 @@ use serde_json::json;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+#[test]
+fn gitlab_without_a_token_exits_2() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let report = dir.path().join("report.json");
+    std::fs::write(&report, empty_report()).expect("report");
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("comment")
+        .arg("--provider")
+        .arg("gitlab")
+        .arg("--report")
+        .arg(&report)
+        .env_remove("GITLAB_TOKEN")
+        .env("CI_API_V4_URL", "http://127.0.0.1:9/api/v4")
+        .env("CI_PROJECT_ID", "1")
+        .env("CI_MERGE_REQUEST_IID", "1");
+    command
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("GITLAB_TOKEN"));
+}
+
 fn empty_report() -> &'static str {
     r#"{"schema_version":1,"summary":{"packages_scanned":0,"findings":0,"by_tier":{"critical":0,"review":0,"defer":0},"max_score":0,"failed":false},"findings":[]}"#
 }
