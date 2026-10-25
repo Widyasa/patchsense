@@ -174,8 +174,11 @@ pub struct Finding {
     pub advisory: Advisory,
     /// Installed package.
     pub package: Package,
-    /// Priority bucket. Week 1 leaves this at `Defer` until the score engine exists.
+    /// Priority bucket. Stays `Defer` until enrichment scores the finding.
     pub tier: Tier,
+    /// Rounded priority score, 0–100. Zero until enrichment runs.
+    #[serde(default)]
+    pub score: u32,
 }
 
 /// Scan output. The JSON schema in the product spec is filled in later;
@@ -188,6 +191,31 @@ pub struct Report {
     pub findings: Vec<Finding>,
     /// Warnings collected from parsers and the scan.
     pub warnings: Vec<String>,
+    /// Counts after ignore rules are applied.
+    #[serde(default)]
+    pub summary: Summary,
+    /// Advisory ids dropped by `ignore`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ignored: Vec<String>,
+}
+
+/// Counts the scan uses for `--fail-on` and the report header.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Summary {
+    /// Packages sent to OSV after dedupe and filters.
+    pub packages_scanned: usize,
+    /// Findings that were not ignored.
+    pub findings: usize,
+    /// Findings in the critical tier.
+    pub critical: usize,
+    /// Findings in the review tier.
+    pub review: usize,
+    /// Findings in the defer tier.
+    pub defer: usize,
+    /// Highest rounded score, or 0.
+    pub max_score: u32,
+    /// True when a finding meets the configured `--fail-on` bar.
+    pub failed: bool,
 }
 
 #[cfg(test)]
@@ -281,11 +309,14 @@ mod tests {
             advisory: advisory.clone(),
             package: package.clone(),
             tier: Tier::Defer,
+            score: 0,
         };
         let report = Report {
             schema_version: 1,
             findings: vec![finding],
             warnings: vec![],
+            summary: Summary::default(),
+            ignored: Vec::new(),
         };
 
         for value in [

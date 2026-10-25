@@ -1,25 +1,34 @@
-//! Scan orchestration: find lockfiles, parse them, and load OSV advisories.
+//! Scan orchestration: find lockfiles, parse them, load OSV advisories, and
+//! optionally score them.
 //!
-//! This pass does not score. The binary prints the raw list. Exit code 1 and
-//! `--fail-on` arrive with the score engine.
+//! [`ScanOptions::enrich`] fetches EPSS and KEV, merges aliases, and applies
+//! the priority score. The CLI turns it on. Library tests leave it off so a
+//! scripted HTTP client is not asked for enrichment responses.
+//! [`Summary::failed`] follows [`ScanOptions::fail_on`]. The binary maps that
+//! flag to exit code 1.
 //!
 //! `--keep-going` (the default) turns a bad lockfile into a warning unless
 //! every lockfile failed. Packages are deduped on ecosystem, name, and version
 //! before the OSV query. `--ecosystem` and `--no-dev` drop packages first.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cache::{Cache, DEFAULT_TTL};
+use crate::config::{FailOn, ScoreSection};
 use crate::discovery::discover;
+use crate::enrich::epss::{self, DEFAULT_EPSS_URL};
+use crate::enrich::kev::{self, DEFAULT_KEV_URL};
+use crate::enrich::merge_advisories;
 use crate::error::CoreError;
 use crate::http::HttpClient;
 use crate::lockfile::parser_for;
-use crate::model::{Ecosystem, Finding, Package, Report, Tier};
+use crate::model::{Advisory, Ecosystem, Finding, Package, Report, Summary, Tier};
 use crate::osv::{
     cache_query, cached_query, fetch_advisories_cached, query_batch, AdvisoryCache, OsvVulnRef,
 };
+use crate::score::{score_request, EpssSample, ScoreRequest};
 
 /// Filters applied after parsing and before the OSV query.
 #[derive(Debug, Clone)]
@@ -43,6 +52,18 @@ pub struct ScanOptions {
     pub now: Option<i64>,
     /// Extra exclude globs from config and `--exclude`.
     pub excludes: Vec<String>,
+    /// Fetch EPSS and KEV, then score. Library tests leave this off.
+    pub enrich: bool,
+    /// Threshold that sets [`Summary::failed`].
+    pub fail_on: FailOn,
+    /// Weights and tier cutoffs.
+    pub score: ScoreSection,
+    /// Advisory or CVE ids suppressed by config.
+    pub ignore_ids: Vec<String>,
+    /// EPSS origin. The CLI sets this from `PATCHSENSE_EPSS_URL`.
+    pub epss_base_url: String,
+    /// KEV document URL. The CLI sets this from `PATCHSENSE_KEV_URL`.
+    pub kev_feed_url: String,
 }
 
 impl Default for ScanOptions {
@@ -56,6 +77,12 @@ impl Default for ScanOptions {
             cache_db: None,
             now: None,
             excludes: Vec::new(),
+            enrich: false,
+            fail_on: FailOn::Critical,
+            score: ScoreSection::default(),
+            ignore_ids: Vec::new(),
+            epss_base_url: DEFAULT_EPSS_URL.to_string(),
+            kev_feed_url: DEFAULT_KEV_URL.to_string(),
         }
     }
 }
@@ -155,7 +182,7 @@ where
         &mut warnings,
     )
     .await?;
-    let mut findings = Vec::new();
+    let mut groups = Vec::new();
     for (package, vulns) in packages.iter().zip(matched) {
         if vulns.is_empty() {
             continue;
@@ -174,34 +201,197 @@ where
             &mut warnings,
         )
         .await?;
-        for advisory in advisories {
-            findings.push(Finding {
-                advisory,
-                package: package.clone(),
-                tier: Tier::Defer,
-            });
+        if !advisories.is_empty() {
+            groups.push((package.clone(), advisories));
         }
     }
-    findings.sort_by(|left, right| {
-        (
-            &left.package.source_file,
-            &left.package.name,
-            &left.package.version,
-            &left.advisory.id,
-        )
-            .cmp(&(
-                &right.package.source_file,
-                &right.package.name,
-                &right.package.version,
-                &right.advisory.id,
-            ))
-    });
+    let (findings, ignored) = if options.enrich {
+        score_groups(client, options, cache.as_ref(), now, groups, &mut warnings).await?
+    } else {
+        let mut findings = Vec::new();
+        for (package, advisories) in groups {
+            for advisory in advisories {
+                findings.push(Finding {
+                    advisory,
+                    package: package.clone(),
+                    tier: Tier::Defer,
+                    score: 0,
+                });
+            }
+        }
+        findings.sort_by(|left, right| {
+            (
+                &left.package.source_file,
+                &left.package.name,
+                &left.package.version,
+                &left.advisory.id,
+            )
+                .cmp(&(
+                    &right.package.source_file,
+                    &right.package.name,
+                    &right.package.version,
+                    &right.advisory.id,
+                ))
+        });
+        (findings, Vec::new())
+    };
+    let summary = summarize(&findings, packages.len(), options);
 
     Ok(Report {
         schema_version: 1,
         findings,
         warnings,
+        summary,
+        ignored,
     })
+}
+
+async fn score_groups<C>(
+    client: &C,
+    options: &ScanOptions,
+    cache: Option<&Cache>,
+    now: i64,
+    groups: Vec<(Package, Vec<Advisory>)>,
+    warnings: &mut Vec<String>,
+) -> Result<(Vec<Finding>, Vec<String>), CoreError>
+where
+    C: HttpClient + Clone + 'static,
+{
+    let cves = collect_cves(&groups);
+    let (epss, kev) = if cves.is_empty() {
+        (BTreeMap::new(), BTreeMap::new())
+    } else if options.offline {
+        warnings.push(
+            "offline: EPSS and KEV were not fetched; missing rows count as absent".to_string(),
+        );
+        (BTreeMap::new(), BTreeMap::new())
+    } else {
+        let epss = epss::fetch_epss(client, &options.epss_base_url, &cves, cache, now).await?;
+        let catalog = kev::fetch_kev(client, &options.kev_feed_url, cache, now).await?;
+        (epss, catalog.by_cve)
+    };
+
+    let mut ranked = Vec::new();
+    let mut ignored = Vec::new();
+    let mut warned_weights = false;
+    for (package, advisories) in &groups {
+        for item in merge_advisories(advisories, &epss, &kev) {
+            if is_ignored(&item.id, &item.aliases, &item.cves, &options.ignore_ids) {
+                ignored.push(item.id);
+                continue;
+            }
+            let Some(source) = advisories.iter().find(|advisory| advisory.id == item.id) else {
+                continue;
+            };
+            let mut advisory = source.clone();
+            advisory.aliases.clone_from(&item.aliases);
+            advisory.fixed_versions.clone_from(&item.fixed_versions);
+            let request = ScoreRequest {
+                package_name: package.name.clone(),
+                kev: item.kev,
+                epss: item.epss.date.as_ref().map(|_| EpssSample {
+                    score: item.epss.score,
+                    percentile: item.epss.percentile,
+                }),
+                cvss_base: item.cvss.as_ref().map(|cvss| cvss.base_score),
+                direct: package.direct,
+                fix_available: !item.fixed_versions.is_empty(),
+            };
+            let (scored, score_warnings) = score_request(&request, &options.score);
+            if !warned_weights {
+                warnings.extend(score_warnings);
+                warned_weights = true;
+            }
+            ranked.push((
+                item.kev,
+                Finding {
+                    advisory,
+                    package: package.clone(),
+                    tier: scored.tier,
+                    score: scored.score,
+                },
+            ));
+        }
+    }
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .score
+            .cmp(&left.1.score)
+            .then_with(|| right.0.cmp(&left.0))
+            .then_with(|| left.1.package.name.cmp(&right.1.package.name))
+            .then_with(|| left.1.advisory.id.cmp(&right.1.advisory.id))
+    });
+    let findings = ranked.into_iter().map(|(_, finding)| finding).collect();
+    Ok((findings, ignored))
+}
+
+fn collect_cves(groups: &[(Package, Vec<Advisory>)]) -> Vec<String> {
+    let mut cves = BTreeSet::new();
+    for (_, advisories) in groups {
+        for advisory in advisories {
+            if is_cve(&advisory.id) {
+                cves.insert(advisory.id.to_ascii_uppercase());
+            }
+            for alias in &advisory.aliases {
+                if is_cve(alias) {
+                    cves.insert(alias.to_ascii_uppercase());
+                }
+            }
+        }
+    }
+    cves.into_iter().collect()
+}
+
+fn is_cve(id: &str) -> bool {
+    id.len() >= 4 && id[..4].eq_ignore_ascii_case("CVE-")
+}
+
+fn is_ignored(id: &str, aliases: &[String], cves: &[String], ignore_ids: &[String]) -> bool {
+    ignore_ids.iter().any(|rule| {
+        rule == id
+            || aliases.iter().any(|alias| alias == rule)
+            || cves.iter().any(|cve| cve.eq_ignore_ascii_case(rule))
+    })
+}
+
+fn summarize(findings: &[Finding], packages_scanned: usize, options: &ScanOptions) -> Summary {
+    let mut summary = Summary {
+        packages_scanned,
+        findings: findings.len(),
+        critical: findings
+            .iter()
+            .filter(|finding| finding.tier == Tier::Critical)
+            .count(),
+        review: findings
+            .iter()
+            .filter(|finding| finding.tier == Tier::Review)
+            .count(),
+        defer: findings
+            .iter()
+            .filter(|finding| finding.tier == Tier::Defer)
+            .count(),
+        max_score: findings
+            .iter()
+            .map(|finding| finding.score)
+            .max()
+            .unwrap_or(0),
+        failed: false,
+    };
+    summary.failed = findings
+        .iter()
+        .any(|finding| meets_fail_on(finding.score, options.fail_on, &options.score.thresholds));
+    summary
+}
+
+fn meets_fail_on(score: u32, fail_on: FailOn, thresholds: &crate::config::Thresholds) -> bool {
+    match fail_on {
+        FailOn::Never => false,
+        FailOn::Any => true,
+        FailOn::Critical => f64::from(score) >= thresholds.critical,
+        FailOn::Review => f64::from(score) >= thresholds.review,
+        FailOn::Score(limit) => score >= u32::from(limit),
+    }
 }
 
 fn open_scan_cache(options: &ScanOptions) -> Result<Option<Cache>, CoreError> {
