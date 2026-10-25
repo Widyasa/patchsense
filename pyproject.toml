@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "patchsense"
+description = "Prioritize vulnerabilities from lockfiles using OSV, EPSS, and CISA KEV"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+requires-python = ">=3.8"
+authors = [{ name = "Widya Yasa" }]
+keywords = ["security", "cve", "osv", "lockfile", "dependencies"]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Rust",
+    "Topic :: Security",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/Widyasa/patchsense"
+Repository = "https://github.com/Widyasa/patchsense"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "crates/patchsense/Cargo.toml"

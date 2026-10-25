@@ -317,7 +317,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: `dist plan` sukses; tag pra-rilis (mis. `v0.1.0-rc.1`) di repo menghasilkan artifact untuk semua target (dijalankan Widya bila butuh izin push tag).
   - Dep: W6-T1
 
-- [ ] **W6-T3 Paket pip dengan maturin**
+- [x] **W6-T3 Paket pip dengan maturin**
   - Deskripsi: `pyproject.toml` dengan `bindings = "bin"` yang menunjuk crate `patchsense`, workflow `pypi.yml` membangun wheel Linux/macOS/Windows dan publish via trusted publishing hanya pada tag.
   - File: `pyproject.toml`, `.github/workflows/pypi.yml`
   - Selesai bila: `maturin build --release` lokal menghasilkan wheel dan `pip install` wheel itu memberi perintah `patchsense` yang jalan.
