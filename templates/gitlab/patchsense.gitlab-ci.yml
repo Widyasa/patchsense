@@ -1,0 +1,49 @@
+# Include from a GitLab project:
+#
+# include:
+#   - local: templates/gitlab/patchsense.gitlab-ci.yml
+#
+# Or, after a GitHub release exists, from the raw file URL.
+# Set GITLAB_TOKEN (project access token, api scope, masked) to comment on
+# merge requests. The release installer is not published yet; see docs/gitlab.md.
+
+variables:
+  PATCHSENSE_VERSION: "latest"
+  PATCHSENSE_FAIL_ON: "critical"
+  PATCHSENSE_PATH: "."
+
+patchsense:
+  stage: test
+  image: debian:stable-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+    - |
+      set -euo pipefail
+      if [ "${PATCHSENSE_VERSION}" = "latest" ]; then
+        url="https://github.com/Widyasa/patchsense/releases/latest/download/patchsense-installer.sh"
+      else
+        url="https://github.com/Widyasa/patchsense/releases/download/v${PATCHSENSE_VERSION}/patchsense-installer.sh"
+      fi
+      curl --proto '=https' --tlsv1.2 -fsSL "${url}" | sh
+  script:
+    - |
+      set +e
+      patchsense scan "${PATCHSENSE_PATH}" --fail-on "${PATCHSENSE_FAIL_ON}" --no-color \
+        --format json --output patchsense-report.json \
+        --format gitlab --output gl-dependency-scanning-report.json \
+        --format markdown --output patchsense-report.md
+      code=$?
+      if [ -n "${CI_MERGE_REQUEST_IID:-}" ] && [ -n "${GITLAB_TOKEN:-}" ]; then
+        patchsense comment --provider gitlab --report patchsense-report.json || true
+      fi
+      exit "${code}"
+  artifacts:
+    when: always
+    paths:
+      - patchsense-report.json
+      - patchsense-report.md
+    reports:
+      dependency_scanning: gl-dependency-scanning-report.json

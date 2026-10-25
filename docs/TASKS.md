@@ -261,7 +261,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: self-test hijau di PR repo sendiri (sebelum ada rilis, boleh memakai biner hasil `cargo build` lewat input tersembunyi `binary-path`).
   - Dep: W4-T6, W5-T1
 
-- [ ] **W5-T4 Template GitLab CI**
+- [x] **W5-T4 Template GitLab CI**
   - Deskripsi: `templates/gitlab/patchsense.gitlab-ci.yml` sesuai PRD §14 plus dokumentasi `include`.
   - File: `templates/gitlab/patchsense.gitlab-ci.yml`, `docs/gitlab.md`
   - Selesai bila: YAML valid (lolos linter YAML) dan diuji manual sekali di proyek GitLab uji (catat hasilnya di PR). Uji manual dilakukan Widya bila agent tidak punya akses GitLab.
