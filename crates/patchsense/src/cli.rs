@@ -22,6 +22,8 @@ pub enum Command {
     Cache(CacheArgs),
     /// Write an example `patchsense.toml` in the current directory.
     Init(InitArgs),
+    /// Create or update a pull-request comment from a JSON report.
+    Comment(CommentArgs),
 }
 
 /// Arguments for `patchsense cache`.
@@ -34,6 +36,26 @@ pub struct CacheArgs {
     /// Cache subcommand.
     #[command(subcommand)]
     pub command: CacheCommand,
+}
+
+/// Arguments for `patchsense comment`.
+#[derive(Debug, Parser)]
+pub struct CommentArgs {
+    /// JSON report from `patchsense scan --format json`.
+    #[arg(long, value_name = "FILE")]
+    pub report: PathBuf,
+
+    /// `auto`, `github`, or `gitlab`. `auto` follows `GITHUB_ACTIONS` or `GITLAB_CI`.
+    #[arg(long, value_name = "PROVIDER", default_value = "auto")]
+    pub provider: String,
+
+    /// Findings included in the comment table. Defaults to 20.
+    #[arg(long, value_name = "N")]
+    pub top: Option<usize>,
+
+    /// Print the markdown and do not call the API.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 /// Arguments for `patchsense init`.

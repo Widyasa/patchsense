@@ -1,6 +1,7 @@
 //! PatchSense binary.
 
 mod cli;
+mod comment;
 mod init;
 mod progress;
 mod table;
@@ -112,6 +113,7 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 Ok(ExitCode::SUCCESS)
             }
         }
+        Command::Comment(args) => comment::run(args).await,
         Command::Init(args) => {
             let status = init::write_example_config(Path::new("."), args.force)?;
             match status {
