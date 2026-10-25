@@ -1,15 +1,17 @@
-//! Parser for classic Yarn v1 `yarn.lock`.
+//! Parser for Yarn `yarn.lock`, classic v1 and Berry.
 //!
-//! A block header lists one or more specs (`"name@range", other@range:`) and
-//! the resolved version is the indented `version "..."` line. Scoped names
-//! keep the leading `@`. Berry lockfiles start with `__metadata` and are
-//! rejected here so they are not read as classic.
+//! Classic: a block header lists one or more specs and the resolved version
+//! is the indented `version "..."` line. Berry: a YAML document whose first
+//! mapping is `__metadata`. The package name comes from `resolution` (the
+//! text before `@npm:` or another protocol) and the version from `version`.
+//! `workspace:` and `patch:` resolutions are skipped. Scoped names keep `@`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
+use serde_yaml::Value as Yaml;
 
 use crate::error::CoreError;
 use crate::lockfile::LockfileParser;
@@ -30,18 +32,104 @@ impl LockfileParser for YarnParser {
     }
 
     fn parse(&self, path: &Path, content: &str) -> Result<ParsedLockfile, CoreError> {
-        parse_yarn_classic(path, content)
+        if is_berry(content) {
+            parse_yarn_berry(path, content)
+        } else {
+            parse_yarn_classic(path, content)
+        }
+    }
+}
+
+fn parse_yarn_berry(path: &Path, content: &str) -> Result<ParsedLockfile, CoreError> {
+    let doc: Yaml = serde_yaml::from_str(content).map_err(|err| {
+        let line = err.location().map(|location| location.line());
+        CoreError::parse(path, line, err.to_string())
+    })?;
+    let Some(entries) = doc.as_mapping() else {
+        return Err(CoreError::parse(
+            path,
+            None,
+            "yarn berry lockfile is not a YAML mapping",
+        ));
+    };
+    let mut found: BTreeMap<(String, String), ()> = BTreeMap::new();
+    let mut warnings = Vec::new();
+    for (key, entry) in entries {
+        let Some(label) = key.as_str() else {
+            continue;
+        };
+        if label == "__metadata" {
+            continue;
+        }
+        let Some(resolution) = entry.get("resolution").and_then(Yaml::as_str) else {
+            warnings.push(format!("{}: {label} has no resolution", display_path(path)));
+            continue;
+        };
+        if skip_resolution(resolution) {
+            continue;
+        }
+        let Some(name) = name_from_resolution(resolution) else {
+            warnings.push(format!(
+                "{}: could not read a package name from resolution {resolution}",
+                display_path(path)
+            ));
+            continue;
+        };
+        let Some(version) = entry.get("version").and_then(Yaml::as_str) else {
+            warnings.push(format!("{}: {name} has no version", display_path(path)));
+            continue;
+        };
+        if version.is_empty() || version == "0.0.0-use.local" {
+            continue;
+        }
+        found.insert((name, version.to_string()), ());
+    }
+
+    let sibling = package_json_deps(path)?;
+    let source = display_path(path);
+    let mut packages: Vec<Package> = found
+        .into_keys()
+        .map(|(name, version)| package_from(&name, version, &sibling, &source))
+        .collect();
+    packages.sort_by(|left, right| (&left.name, &left.version).cmp(&(&right.name, &right.version)));
+    Ok(ParsedLockfile {
+        ecosystem: Ecosystem::Npm,
+        packages,
+        warnings,
+    })
+}
+
+fn skip_resolution(resolution: &str) -> bool {
+    resolution.contains("@workspace:") || resolution.contains("@patch:")
+}
+
+fn name_from_resolution(resolution: &str) -> Option<String> {
+    const MARKERS: &[&str] = &[
+        "@npm:",
+        "@workspace:",
+        "@patch:",
+        "@file:",
+        "@portal:",
+        "@git:",
+        "@https:",
+        "@http:",
+    ];
+    let mut split_at = None;
+    for marker in MARKERS {
+        if let Some(pos) = resolution.rfind(marker) {
+            split_at = Some(split_at.map_or(pos, |current: usize| current.max(pos)));
+        }
+    }
+    let pos = split_at?;
+    let name = &resolution[..pos];
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
     }
 }
 
 fn parse_yarn_classic(path: &Path, content: &str) -> Result<ParsedLockfile, CoreError> {
-    if is_berry(content) {
-        return Err(CoreError::parse(
-            path,
-            None,
-            "yarn berry lockfiles are not parsed by the classic parser",
-        ));
-    }
     let mut pending: Vec<String> = Vec::new();
     let mut found: BTreeMap<(String, String), ()> = BTreeMap::new();
     for (index, line) in content.lines().enumerate() {
@@ -79,25 +167,7 @@ fn parse_yarn_classic(path: &Path, content: &str) -> Result<ParsedLockfile, Core
     let source = display_path(path);
     let mut packages: Vec<Package> = found
         .into_keys()
-        .map(|(name, version)| {
-            let (direct, dev) = match &sibling {
-                None => (None, false),
-                Some(info) => {
-                    let is_dep = info.dependencies.contains(&name);
-                    let is_dev = info.dev_dependencies.contains(&name);
-                    (Some(is_dep || is_dev), is_dev && !is_dep)
-                }
-            };
-            Package {
-                ecosystem: Ecosystem::Npm,
-                name,
-                version,
-                direct,
-                dev,
-                source_file: source.clone(),
-                line: None,
-            }
-        })
+        .map(|(name, version)| package_from(&name, version, &sibling, &source))
         .collect();
     packages.sort_by(|left, right| (&left.name, &left.version).cmp(&(&right.name, &right.version)));
     Ok(ParsedLockfile {
@@ -105,6 +175,31 @@ fn parse_yarn_classic(path: &Path, content: &str) -> Result<ParsedLockfile, Core
         packages,
         warnings: Vec::new(),
     })
+}
+
+fn package_from(
+    name: &str,
+    version: String,
+    sibling: &Option<PackageJsonDeps>,
+    source: &str,
+) -> Package {
+    let (direct, dev) = match sibling {
+        None => (None, false),
+        Some(info) => {
+            let is_dep = info.dependencies.contains(name);
+            let is_dev = info.dev_dependencies.contains(name);
+            (Some(is_dep || is_dev), is_dev && !is_dep)
+        }
+    };
+    Package {
+        ecosystem: Ecosystem::Npm,
+        name: name.to_string(),
+        version,
+        direct,
+        dev,
+        source_file: source.to_string(),
+        line: None,
+    }
 }
 
 fn is_berry(content: &str) -> bool {
@@ -290,12 +385,38 @@ mod tests {
     }
 
     #[test]
-    fn berry_metadata_is_not_classic() {
-        let err = YarnParser
-            .parse(Path::new("yarn.lock"), "__metadata:\n  version: 6\n")
-            .expect_err("berry");
-        let message = err.to_string();
-        assert!(message.contains("berry"), "{message}");
-        assert!(message.contains("yarn.lock"), "{message}");
+    fn berry_fixture_skips_workspace_and_patch() {
+        let parsed = parse_fixture("berry");
+        let names: Vec<_> = parsed
+            .packages
+            .iter()
+            .map(|package| package.name.as_str())
+            .collect();
+        assert!(names.contains(&"@aashutoshrathi/word-wrap"), "{names:?}");
+        assert!(!names.iter().any(|name| name.contains("workspace")));
+        assert!(!names.contains(&"fsevents"));
+        let chalk = parsed
+            .packages
+            .iter()
+            .find(|package| package.name == "chalk")
+            .expect("chalk");
+        assert_eq!(chalk.version, "3.0.0");
+        assert_eq!(chalk.direct, Some(true));
+        assert!(!chalk.dev);
+        let wrap = parsed
+            .packages
+            .iter()
+            .find(|package| package.name == "@aashutoshrathi/word-wrap")
+            .expect("word-wrap");
+        assert_eq!(wrap.direct, Some(false));
+        // The same bytes must not be read as a classic header.
+        assert!(is_berry(
+            &fs::read_to_string(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/yarn/berry/yarn.lock")
+            )
+            .unwrap()
+        ));
+        insta::assert_yaml_snapshot!("berry", parsed);
     }
 }

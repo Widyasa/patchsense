@@ -1,0 +1,8 @@
+{
+  "name": "@yarnpkg/monorepo",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "chalk": "^3.0.0",
+    "semver": "^7.1.2"
+  }
+}
