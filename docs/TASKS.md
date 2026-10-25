@@ -155,7 +155,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes: scan kedua tidak memanggil `/v1/vulns` (dihitung via `FakeHttp`); `--offline` dengan `FakeHttp::forbid()` lolos.
   - Dep: W3-T1, W1-T11
 
-- [ ] **W3-T3 Enricher EPSS**
+- [x] **W3-T3 Enricher EPSS**
   - Deskripsi: `GET /data/v1/epss?cve=...` per chunk 100 CVE, parse string desimal → `f64`, simpan di cache.
   - File: `core/enrich/epss.rs`, `tests/fixtures/epss/*.json`
   - Selesai bila: tes chunking (250 CVE → 3 request), parsing, dan cache hit.
