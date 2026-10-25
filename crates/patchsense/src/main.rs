@@ -1,6 +1,7 @@
 //! PatchSense binary.
 
 mod cli;
+mod init;
 mod progress;
 mod table;
 
@@ -110,6 +111,17 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             } else {
                 Ok(ExitCode::SUCCESS)
             }
+        }
+        Command::Init(args) => {
+            let status = init::write_example_config(Path::new("."), args.force)?;
+            match status {
+                init::InitStatus::Created => println!("wrote patchsense.toml"),
+                init::InitStatus::Kept => {
+                    println!("patchsense.toml already exists; pass --force to replace it");
+                }
+                init::InitStatus::Replaced => println!("replaced patchsense.toml"),
+            }
+            Ok(ExitCode::SUCCESS)
         }
         Command::Cache(args) => {
             let path = cache_db_path(args.cache_dir.as_deref());

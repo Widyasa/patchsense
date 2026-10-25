@@ -235,7 +235,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: integration test satu kali scan menghasilkan 3 file sekaligus dan request OSV hanya terjadi sekali.
   - Dep: W4-T2, W4-T3, W4-T4, W4-T5
 
-- [ ] **W4-T7 `patchsense init` (config)**
+- [x] **W4-T7 `patchsense init` (config)**
   - Deskripsi: tulis `patchsense.toml` contoh (PRD §7) bila belum ada; `--force` untuk menimpa.
   - File: `cli/init.rs`
   - Selesai bila: tes di `tempfile`: file dibuat, tidak ditimpa tanpa `--force`, dan hasilnya bisa diparse `Config`.
