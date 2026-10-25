@@ -1,0 +1,33 @@
+[package]
+name = "patchsense-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Library for PatchSense lockfile parsing, OSV matching, and priority scoring"
+readme.workspace = true
+keywords.workspace = true
+categories = ["development-tools"]
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = "0.1.92"
+globset = "0.4.20"
+quick-xml = "0.42.0"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json"] }
+semver = "1.0.28"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_yaml = "0.9.34"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+toml = "1.1.8"
+
+[dev-dependencies]
+insta = { version = "1.49.0", features = ["yaml"] }
+tempfile = "3.27.0"

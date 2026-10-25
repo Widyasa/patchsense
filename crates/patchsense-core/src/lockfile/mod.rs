@@ -9,6 +9,7 @@ use std::path::Path;
 use crate::error::CoreError;
 use crate::model::{Ecosystem, ParsedLockfile};
 
+mod cargo;
 mod composer;
 mod gosum;
 mod maven;
@@ -18,6 +19,7 @@ mod poetry;
 mod requirements;
 mod yarn;
 
+use cargo::CargoLockParser;
 use composer::ComposerParser;
 use gosum::GoSumParser;
 use maven::MavenParser;
@@ -41,32 +43,6 @@ pub trait LockfileParser: Send + Sync {
     fn parse(&self, path: &Path, content: &str) -> Result<ParsedLockfile, CoreError>;
 }
 
-/// File-name parser used until a real parser replaces it.
-struct FileNameParser {
-    file_name: &'static str,
-    ecosystem: Ecosystem,
-}
-
-impl LockfileParser for FileNameParser {
-    fn ecosystem(&self) -> Ecosystem {
-        self.ecosystem
-    }
-
-    fn matches(&self, path: &Path) -> bool {
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.eq_ignore_ascii_case(self.file_name))
-    }
-
-    fn parse(&self, path: &Path, _content: &str) -> Result<ParsedLockfile, CoreError> {
-        Err(CoreError::parse(
-            path,
-            None,
-            format!("parser for {} is not implemented yet", self.file_name),
-        ))
-    }
-}
-
 const NPM_PACKAGE_LOCK: NpmPackageLockParser = NpmPackageLockParser;
 const PNPM_LOCK: PnpmParser = PnpmParser;
 const YARN_LOCK: YarnParser = YarnParser;
@@ -75,10 +51,7 @@ const REQUIREMENTS: RequirementsParser = RequirementsParser;
 const COMPOSER_LOCK: ComposerParser = ComposerParser;
 const GO_SUM: GoSumParser = GoSumParser;
 const POM_XML: MavenParser = MavenParser;
-const CARGO_LOCK: FileNameParser = FileNameParser {
-    file_name: "Cargo.lock",
-    ecosystem: Ecosystem::CratesIo,
-};
+const CARGO_LOCK: CargoLockParser = CargoLockParser;
 
 /// Parsers in the order they are tried. File names in the MVP do not overlap.
 static PARSERS: &[&dyn LockfileParser] = &[
@@ -173,15 +146,18 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_parser_names_the_file() {
-        let path = Path::new("Cargo.lock");
-        let err = parser_for(path)
+    fn cargo_lock_parser_is_registered() {
+        let path = Path::new("does-not-exist/Cargo.lock");
+        let parsed = parser_for(path)
             .expect("parser")
-            .parse(path, "# stub\n")
-            .expect_err("stub");
-        let message = err.to_string();
-        assert!(message.contains("Cargo.lock"), "{message}");
-        assert!(message.contains("not implemented"), "{message}");
+            .parse(
+                path,
+                "version = 3\n\n[[package]]\nname = \"serde\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n",
+            )
+            .expect("parse");
+        assert_eq!(parsed.packages.len(), 1);
+        assert_eq!(parsed.packages[0].name, "serde");
+        assert_eq!(parsed.packages[0].direct, None);
     }
 
     #[test]

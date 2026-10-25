@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["crates/patchsense-core", "crates/patchsense"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.99"
+authors = ["Widya Yasa"]
+repository = "https://github.com/Widyasa/patchsense"
+homepage = "https://github.com/Widyasa/patchsense"
+description = "Prioritize vulnerabilities from lockfiles using OSV, EPSS, and CISA KEV"
+readme = "README.md"
+keywords = ["security", "cve", "osv", "lockfile", "dependencies"]
+categories = ["command-line-utilities", "development-tools"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
