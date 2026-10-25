@@ -173,7 +173,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: unit test untuk ≥5 vector dengan skor yang dibandingkan dengan kalkulator resmi FIRST, plus fallback dan `None`.
   - Dep: W1-T11
 
-- [ ] **W3-T6 Penggabungan alias dan enrichment**
+- [x] **W3-T6 Penggabungan alias dan enrichment**
   - Deskripsi: per advisory: kumpulkan CVE dari `id`/`aliases`, KEV any, EPSS max, CVSS tertinggi. Dedupe advisory yang saling alias untuk paket yang sama (pakai ID GHSA/OSV utama, simpan semua alias).
   - File: `core/enrich/mod.rs`
   - Selesai bila: tes untuk advisory dengan 2 CVE, tanpa CVE, dan dua advisory yang saling alias.
