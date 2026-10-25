@@ -65,6 +65,15 @@ pub struct ScoredFinding {
     pub breakdown: ScoreBreakdown,
 }
 
+/// Score one request. The warning list is empty when the weights sum to 100.
+pub fn score_request(request: &ScoreRequest, score: &ScoreSection) -> (ScoredFinding, Vec<String>) {
+    let (mut findings, warnings) = score_findings(std::slice::from_ref(request), score);
+    let finding = findings
+        .pop()
+        .expect("INVARIANT: one request produces one scored row");
+    (finding, warnings)
+}
+
 /// Score every request and sort the result.
 ///
 /// Order is score descending, then KEV true first, then package name, then

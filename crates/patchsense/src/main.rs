@@ -10,6 +10,8 @@ use clap::Parser;
 
 use patchsense_core::cache::{self, resolve_cache_db, Cache, CacheLocation};
 use patchsense_core::config::{self, FailOn, FlagInput, LoadRequest};
+use patchsense_core::enrich::epss::epss_base_url;
+use patchsense_core::enrich::kev::kev_feed_url;
 use patchsense_core::http::{osv_base_url, ReqwestClient};
 use patchsense_core::model::{Ecosystem, Report};
 use patchsense_core::scan::{scan_with, ScanOptions};
@@ -19,7 +21,7 @@ use crate::cli::{CacheCommand, Cli, Command};
 #[tokio::main]
 async fn main() -> ExitCode {
     match try_main().await {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(err) => {
             eprintln!("error: {err:#}");
             ExitCode::from(2)
@@ -27,7 +29,7 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn try_main() -> anyhow::Result<()> {
+async fn try_main() -> anyhow::Result<ExitCode> {
     let cli = Cli::parse();
     match cli.command {
         Command::Scan(args) => {
@@ -78,11 +80,26 @@ async fn try_main() -> anyhow::Result<()> {
                 },
                 now: None,
                 excludes: loaded.config.scan.exclude.clone(),
+                enrich: true,
+                fail_on: loaded.config.scan.fail_on,
+                score: loaded.config.score.clone(),
+                ignore_ids: loaded
+                    .config
+                    .ignore
+                    .iter()
+                    .map(|rule| rule.id.clone())
+                    .collect(),
+                epss_base_url: epss_base_url(),
+                kev_feed_url: kev_feed_url(),
             };
             let client = ReqwestClient::new().context("failed to build the HTTP client")?;
             let report = scan_with(&client, &osv_base_url(), &path, &options).await?;
             print_report(&report);
-            Ok(())
+            if report.summary.failed {
+                Ok(ExitCode::from(1))
+            } else {
+                Ok(ExitCode::SUCCESS)
+            }
         }
         Command::Cache(args) => {
             let path = cache_db_path(args.cache_dir.as_deref());
@@ -111,7 +128,7 @@ async fn try_main() -> anyhow::Result<()> {
                     }
                 }
             }
-            Ok(())
+            Ok(ExitCode::SUCCESS)
         }
     }
 }

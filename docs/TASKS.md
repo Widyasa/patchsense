@@ -191,7 +191,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: unit test kasus A–E di PRD §9 menghasilkan skor dan tier persis, plus tes batas 69.5/70/39.9/40 dan bobot non-100.
   - Dep: W3-T6, W3-T7
 
-- [ ] **W3-T9 Pipeline scan lengkap dan `--fail-on`**
+- [x] **W3-T9 Pipeline scan lengkap dan `--fail-on`**
   - Deskripsi: sambungkan enrichment + skor + ignore ke `scan`, hitung `summary`, terapkan `--fail-on` dan exit code PRD §6.6.
   - File: `core/scan.rs`, `cli/main.rs`
   - Selesai bila: integration test: fixture dengan advisory KEV → exit 1 untuk `--fail-on critical`, exit 0 untuk `never`; error konfigurasi → exit 2.
