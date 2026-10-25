@@ -99,7 +99,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata, scoped package benar, snapshot lolos.
   - Dep: W1-T4
 
-- [ ] **W2-T3 Parser `yarn.lock` Berry (v2+)**
+- [x] **W2-T3 Parser `yarn.lock` Berry (v2+)**
   - Deskripsi: deteksi `__metadata` (YAML), parse dengan `serde_yaml`, ambil `version` dan nama dari `resolution`. Lewati `workspace:` dan `patch:` lokal.
   - File: `core/lockfile/yarn.rs`, `tests/fixtures/yarn/`
   - Selesai bila: fixture nyata Berry, snapshot lolos, file yang sama tidak salah dideteksi sebagai classic.
