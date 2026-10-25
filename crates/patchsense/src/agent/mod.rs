@@ -1,5 +1,4 @@
-//! CLI agent adapters. `scan --explain` runs them in W5-T9.
-#![allow(unused_imports)]
+//! CLI agent adapters for `scan --explain`.
 //!
 //! Flag check on 25 Oct 2026:
 //! - Codex: `codex exec --sandbox read-only -o <file> <prompt>`
@@ -14,6 +13,9 @@ mod claude;
 mod codex;
 mod cursor;
 mod prompt;
+mod run;
+
+pub use run::{apply_explain, ExplainRequest};
 
 use std::ffi::OsStr;
 use std::fmt;
@@ -23,12 +25,14 @@ use std::time::Duration;
 pub use claude::ClaudeAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
-pub use prompt::{build_prompt, PromptLang, MAX_PROMPT_CHARS};
+pub use prompt::{build_prompt, PromptLang};
 
 /// Default wait before the runner kills the agent process.
+#[cfg_attr(not(test), allow(dead_code))]
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Flags and sandbox names that would let an agent write or skip checks.
+#[cfg_attr(not(test), allow(dead_code))]
 const WRITE_FLAGS: &[&str] = &[
     "--force",
     "--yolo",
@@ -71,6 +75,7 @@ pub trait AgentAdapter {
     fn binary_candidates(&self) -> &'static [&'static str];
 
     /// How long the runner waits before killing the process.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn timeout(&self) -> Duration {
         DEFAULT_TIMEOUT
     }
@@ -104,9 +109,11 @@ pub fn find_binary(path: Option<&OsStr>, candidates: &[&str]) -> Option<PathBuf>
             }
             #[cfg(windows)]
             {
-                let exe = dir.join(format!("{name}.exe"));
-                if exe.is_file() {
-                    return Some(exe);
+                for suffix in ["exe", "bat", "cmd"] {
+                    let candidate = dir.join(format!("{name}.{suffix}"));
+                    if candidate.is_file() {
+                        return Some(candidate);
+                    }
                 }
             }
         }
@@ -130,6 +137,7 @@ pub(crate) fn json_result(stdout: &str) -> Result<String, AgentError> {
         .ok_or(AgentError::MissingResult)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn assert_read_only(command: &std::process::Command) {
     let args: Vec<String> = command
         .get_args()

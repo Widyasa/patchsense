@@ -50,7 +50,18 @@ pub fn render_table(report: &Report, color: bool, min_score: u32) -> String {
         .iter()
         .filter(|finding| finding.tier == Tier::Defer)
         .count();
-    format!("{table}\nKritis: {critical}  Perlu dicek: {review}  Bisa ditunda: {defer}\n")
+    let mut text =
+        format!("{table}\nKritis: {critical}  Perlu dicek: {review}  Bisa ditunda: {defer}\n");
+    if let Some(explanation) = shown
+        .iter()
+        .find_map(|finding| finding.signals.explanation.as_ref())
+    {
+        text.push_str(&format!(
+            "{}: {}\n",
+            explanation.disclaimer, explanation.text
+        ));
+    }
+    text
 }
 
 fn row(finding: &Finding, color: bool) -> Vec<Cell> {
@@ -211,5 +222,17 @@ mod tests {
         assert!(filtered.contains("Kritis: 1"));
         assert!(filtered.contains("Bisa ditunda: 0"));
         assert!(!filtered.contains(" 37 "));
+    }
+
+    #[test]
+    fn table_prints_the_ai_disclaimer_once() {
+        let mut report = report(vec![finding(37, Tier::Defer, false)]);
+        report.findings[0].signals.explanation = Some(patchsense_core::model::Explanation {
+            agent: "codex".into(),
+            text: "Upgrade lodash.".into(),
+            disclaimer: "Penjelasan AI, bisa keliru".into(),
+        });
+        let text = render_table(&report, false, 0);
+        assert!(text.contains("Penjelasan AI, bisa keliru: Upgrade lodash."));
     }
 }

@@ -1,5 +1,4 @@
 //! Prompt text for `scan --explain`.
-#![allow(dead_code)] // Called by `scan --explain` in W5-T9.
 //!
 //! The prompt is the process argument, so it stays under the Windows command
 //! line limit. Extra findings are dropped from the end until it fits. A single

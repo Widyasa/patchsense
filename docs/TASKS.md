@@ -291,7 +291,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot argumen `build_command` dan tes `parse_output` dari fixture stdout untuk tiap adapter; tidak ada flag izin tulis.
   - Dep: W5-T7
 
-- [ ] **W5-T9 `scan --explain`**
+- [x] **W5-T9 `scan --explain`**
   - Deskripsi: hubungkan adapter ke scan: deteksi `auto`, jalankan, sisipkan `explanation` ke temuan, tampilkan di tabel/markdown dengan label "Penjelasan AI, bisa keliru". Gagal/timeout/tak ada agent → warning, exit code tidak berubah.
   - File: `cli/main.rs`, `cli/agent/mod.rs`, `core/report/markdown.rs`
   - Selesai bila: tes memakai skrip agent palsu di PATH sementara (skrip shell/bat yang mencetak fixture) untuk sukses, timeout, dan tidak ada agent.
