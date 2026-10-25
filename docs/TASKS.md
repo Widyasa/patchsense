@@ -185,7 +185,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes parse contoh PRD §7 persis, field asing → error, urutan prioritas, ignore kedaluwarsa memberi warning.
   - Dep: W1-T3
 
-- [ ] **W3-T8 Mesin skor**
+- [x] **W3-T8 Mesin skor**
   - Deskripsi: implementasi formula PRD §9 termasuk normalisasi bobot, mode EPSS, `unknown_direct`, pembulatan, tier, `score_breakdown`, dan pengurutan deterministik (PRD AC4.4).
   - File: `core/score.rs`
   - Selesai bila: unit test kasus A–E di PRD §9 menghasilkan skor dan tier persis, plus tes batas 69.5/70/39.9/40 dan bobot non-100.
