@@ -273,7 +273,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: integration test menjalankan proses, mengirim `initialize` dan `tools/list`, dan menerima daftar tool.
   - Dep: W3-T9
 
-- [ ] **W5-T6 Tool MCP `scan_project`, `get_finding`, `get_fix_plan`, `explain_score`**
+- [x] **W5-T6 Tool MCP `scan_project`, `get_finding`, `get_fix_plan`, `explain_score`**
   - Deskripsi: implementasi sesuai PRD §11, memakai `patchsense-core` dengan base URL yang bisa diarahkan ke fake untuk tes. `get_fix_plan` menghitung versi fix minimum yang menutup semua advisory per paket.
   - File: `cli/mcp.rs`, `core/scan.rs` (helper fix plan)
   - Selesai bila: tes `tools/call` untuk tiap tool dengan fixture; output `scan_project` dibatasi 50 temuan.

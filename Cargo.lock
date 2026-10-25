@@ -1434,6 +1434,8 @@ dependencies = [
  "patchsense-core",
  "predicates",
  "rmcp",
+ "schemars",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
