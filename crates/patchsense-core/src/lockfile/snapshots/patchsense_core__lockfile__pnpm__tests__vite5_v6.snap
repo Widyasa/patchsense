@@ -1,0 +1,25 @@
+---
+source: crates/patchsense-core/src/lockfile/pnpm.rs
+expression: parsed
+---
+ecosystem: npm
+packages:
+  - ecosystem: npm
+    name: "@babel/types"
+    version: 7.23.3
+    direct: true
+    dev: true
+    source_file: tests/fixtures/pnpm/vite5/pnpm-lock.yaml
+  - ecosystem: npm
+    name: "@rollup/plugin-typescript"
+    version: 11.1.5
+    direct: true
+    dev: true
+    source_file: tests/fixtures/pnpm/vite5/pnpm-lock.yaml
+  - ecosystem: npm
+    name: to-fast-properties
+    version: 2.0.0
+    direct: false
+    dev: false
+    source_file: tests/fixtures/pnpm/vite5/pnpm-lock.yaml
+warnings: []

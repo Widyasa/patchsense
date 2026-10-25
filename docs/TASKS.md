@@ -87,7 +87,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 ## Minggu 2: Parser lainnya
 
-- [ ] **W2-T1 Parser `pnpm-lock.yaml`**
+- [x] **W2-T1 Parser `pnpm-lock.yaml`**
   - Deskripsi: dukung lockfile v6 (key `/name@version` atau `/name/version`) dan v9 (`packages` + `snapshots`, key `name@version`). `direct` dari `importers`. Abaikan suffix peer (`(...)`).
   - File: `core/lockfile/pnpm.rs`, `tests/fixtures/pnpm/`
   - Selesai bila: fixture nyata v6 dan v9, snapshot lolos.

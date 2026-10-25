@@ -10,10 +10,12 @@ use crate::error::CoreError;
 use crate::model::{Ecosystem, ParsedLockfile};
 
 mod npm;
+mod pnpm;
 mod poetry;
 mod requirements;
 
 use npm::NpmPackageLockParser;
+use pnpm::PnpmParser;
 use poetry::PoetryParser;
 use requirements::RequirementsParser;
 
@@ -58,10 +60,7 @@ impl LockfileParser for FileNameParser {
 }
 
 const NPM_PACKAGE_LOCK: NpmPackageLockParser = NpmPackageLockParser;
-const PNPM_LOCK: FileNameParser = FileNameParser {
-    file_name: "pnpm-lock.yaml",
-    ecosystem: Ecosystem::Npm,
-};
+const PNPM_LOCK: PnpmParser = PnpmParser;
 const YARN_LOCK: FileNameParser = FileNameParser {
     file_name: "yarn.lock",
     ecosystem: Ecosystem::Npm,
@@ -179,13 +178,13 @@ mod tests {
 
     #[test]
     fn unimplemented_parser_names_the_file() {
-        let path = Path::new("pnpm-lock.yaml");
+        let path = Path::new("yarn.lock");
         let err = parser_for(path)
             .expect("parser")
-            .parse(path, "lockfileVersion: '9.0'")
+            .parse(path, "not a yarn lockfile")
             .expect_err("stub");
         let message = err.to_string();
-        assert!(message.contains("pnpm-lock.yaml"), "{message}");
+        assert!(message.contains("yarn.lock"), "{message}");
         assert!(message.contains("not implemented"), "{message}");
     }
 
