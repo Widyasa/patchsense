@@ -10,6 +10,7 @@ use crate::error::CoreError;
 use crate::model::{Ecosystem, ParsedLockfile};
 
 mod composer;
+mod gosum;
 mod npm;
 mod pnpm;
 mod poetry;
@@ -17,6 +18,7 @@ mod requirements;
 mod yarn;
 
 use composer::ComposerParser;
+use gosum::GoSumParser;
 use npm::NpmPackageLockParser;
 use pnpm::PnpmParser;
 use poetry::PoetryParser;
@@ -69,10 +71,7 @@ const YARN_LOCK: YarnParser = YarnParser;
 const POETRY_LOCK: PoetryParser = PoetryParser;
 const REQUIREMENTS: RequirementsParser = RequirementsParser;
 const COMPOSER_LOCK: ComposerParser = ComposerParser;
-const GO_SUM: FileNameParser = FileNameParser {
-    file_name: "go.sum",
-    ecosystem: Ecosystem::Go,
-};
+const GO_SUM: GoSumParser = GoSumParser;
 const POM_XML: FileNameParser = FileNameParser {
     file_name: "pom.xml",
     ecosystem: Ecosystem::Maven,
@@ -176,13 +175,13 @@ mod tests {
 
     #[test]
     fn unimplemented_parser_names_the_file() {
-        let path = Path::new("go.sum");
+        let path = Path::new("pom.xml");
         let err = parser_for(path)
             .expect("parser")
-            .parse(path, "")
+            .parse(path, "<project/>")
             .expect_err("stub");
         let message = err.to_string();
-        assert!(message.contains("go.sum"), "{message}");
+        assert!(message.contains("pom.xml"), "{message}");
         assert!(message.contains("not implemented"), "{message}");
     }
 

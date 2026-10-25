@@ -111,7 +111,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata, satu fixture demo PHP2Shell disiapkan di `examples/php2shell-demo/` (versi PHP/paket rentan sesuai advisory), snapshot lolos.
   - Dep: W1-T4
 
-- [ ] **W2-T5 Parser `go.sum` (+ `go.mod`)**
+- [x] **W2-T5 Parser `go.sum` (+ `go.mod`)**
   - Deskripsi: ambil `module version` dari baris non-`/go.mod`, dedupe. Bila `go.mod` ada, tandai `// indirect` sebagai transitif dan sisanya direct; tanpa `go.mod` → `None`. Abaikan versi `+incompatible` suffix sesuai kebutuhan OSV (pertahankan prefix `v`).
   - File: `core/lockfile/gosum.rs`, `tests/fixtures/go/`
   - Selesai bila: ≥2 fixture nyata, snapshot lolos.
