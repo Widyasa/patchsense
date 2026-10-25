@@ -79,7 +79,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: fixture asli (mis. GHSA-35jh-r3h4-6jhm untuk lodash) diparse benar: alias CVE-2021-23337, vector CVSS_V3, fixed 4.17.21; snapshot `Advisory`.
   - Dep: W1-T10
 
-- [ ] **W1-T12 Perintah `scan` minimal (end-to-end mentah)**
+- [x] **W1-T12 Perintah `scan` minimal (end-to-end mentah)**
   - Deskripsi: `clap` dengan subcommand `scan [PATH]`, orkestrasi discovery → parse → OSV, cetak daftar sementara (tanpa skor) ke stdout. `main` memakai `anyhow` dan exit code 2 untuk error.
   - File: `cli/main.rs`, `cli/cli.rs`, `core/scan.rs`
   - Selesai bila: integration test `assert_cmd` dengan base URL OSV diarahkan ke fake (atau `wiremock` lokal) mencetak advisory lodash untuk fixture npm; tanpa lockfile → exit 2 dengan pesan jelas.
