@@ -143,7 +143,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 ## Minggu 3: Data dan skor (EPSS, KEV, CVSS, skor, cache)
 
-- [ ] **W3-T1 Cache SQLite**
+- [x] **W3-T1 Cache SQLite**
   - Deskripsi: `rusqlite` (bundled), tabel `meta(schema_version)`, `osv_vuln(id, modified, json, fetched_at)`, `epss(cve, score, percentile, date, fetched_at)`, `kev(catalog_version, json, fetched_at)`. API get/put dengan TTL. Lokasi sesuai PRD F5. Versi skema berbeda → buat ulang.
   - File: `core/cache.rs`
   - Selesai bila: tes dengan DB di `tempfile` untuk TTL kedaluwarsa, invalidasi `modified`, dan reset skema.
