@@ -11,6 +11,7 @@ use crate::model::{Ecosystem, ParsedLockfile};
 
 mod composer;
 mod gosum;
+mod maven;
 mod npm;
 mod pnpm;
 mod poetry;
@@ -19,6 +20,7 @@ mod yarn;
 
 use composer::ComposerParser;
 use gosum::GoSumParser;
+use maven::MavenParser;
 use npm::NpmPackageLockParser;
 use pnpm::PnpmParser;
 use poetry::PoetryParser;
@@ -72,10 +74,7 @@ const POETRY_LOCK: PoetryParser = PoetryParser;
 const REQUIREMENTS: RequirementsParser = RequirementsParser;
 const COMPOSER_LOCK: ComposerParser = ComposerParser;
 const GO_SUM: GoSumParser = GoSumParser;
-const POM_XML: FileNameParser = FileNameParser {
-    file_name: "pom.xml",
-    ecosystem: Ecosystem::Maven,
-};
+const POM_XML: MavenParser = MavenParser;
 const CARGO_LOCK: FileNameParser = FileNameParser {
     file_name: "Cargo.lock",
     ecosystem: Ecosystem::CratesIo,
@@ -175,13 +174,13 @@ mod tests {
 
     #[test]
     fn unimplemented_parser_names_the_file() {
-        let path = Path::new("pom.xml");
+        let path = Path::new("Cargo.lock");
         let err = parser_for(path)
             .expect("parser")
-            .parse(path, "<project/>")
+            .parse(path, "# stub\n")
             .expect_err("stub");
         let message = err.to_string();
-        assert!(message.contains("pom.xml"), "{message}");
+        assert!(message.contains("Cargo.lock"), "{message}");
         assert!(message.contains("not implemented"), "{message}");
     }
 

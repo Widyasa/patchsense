@@ -117,7 +117,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata, snapshot lolos.
   - Dep: W1-T4
 
-- [ ] **W2-T6 Parser `pom.xml`**
+- [x] **W2-T6 Parser `pom.xml`**
   - Deskripsi: `quick-xml`, ambil `dependencies/dependency` (groupId, artifactId, version, scope), resolve `${prop}` dari `<properties>` dan `${project.version}`. Versi yang tak bisa di-resolve (parent BOM, dependencyManagement eksternal) dilewati dengan warning. Nama = `groupId:artifactId`. Scope `test` = dev.
   - File: `core/lockfile/maven.rs`, `tests/fixtures/maven/`
   - Selesai bila: ≥2 fixture nyata (satu memakai properties), snapshot paket dan warning lolos.
