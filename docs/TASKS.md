@@ -243,7 +243,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 ## Minggu 5: Integrasi (komentar PR/MR, GitHub Action, GitLab CI, MCP, agent)
 
-- [ ] **W5-T1 `patchsense comment` untuk GitHub**
+- [x] **W5-T1 `patchsense comment` untuk GitHub**
   - Deskripsi: baca env GitHub, ambil nomor PR dari `GITHUB_EVENT_PATH`, upsert komentar via REST API berdasarkan marker, `--dry-run`. PR dari fork (403) → warning, exit 0.
   - File: `cli/comment/mod.rs`, `cli/comment/github.rs`
   - Selesai bila: tes dengan HTTP palsu: buat baru, edit yang ada, dan tidak duplikat.
