@@ -1,6 +1,5 @@
 //! PatchSense binary.
 
-#[allow(dead_code)] // `scan --explain` calls this module in W5-T9.
 mod agent;
 mod cli;
 mod comment;
@@ -17,7 +16,7 @@ use clap::Parser;
 use rmcp::ServiceExt;
 
 use patchsense_core::cache::{self, resolve_cache_db, Cache, CacheLocation};
-use patchsense_core::config::{self, FailOn, FlagInput, LoadRequest};
+use patchsense_core::config::{self, ExplainAgent, ExplainLang, FailOn, FlagInput, LoadRequest};
 use patchsense_core::enrich::epss::epss_base_url;
 use patchsense_core::enrich::kev::kev_feed_url;
 use patchsense_core::http::{osv_base_url, ReqwestClient};
@@ -54,8 +53,18 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 )
             };
             let fail_on = args.fail_on.as_deref().map(FailOn::parse).transpose()?;
+            let agent = match args.agent.as_deref() {
+                Some(value) => Some(ExplainAgent::parse(value)?),
+                None => None,
+            };
+            let lang = match args.lang.as_deref() {
+                Some("id") => Some(ExplainLang::Id),
+                Some("en") => Some(ExplainLang::En),
+                Some(other) => anyhow::bail!("unknown lang `{other}`"),
+                None => None,
+            };
             let config_env = std::env::var_os("PATCHSENSE_CONFIG").map(PathBuf::from);
-            let loaded = config::load_config(&LoadRequest {
+            let mut loaded = config::load_config(&LoadRequest {
                 start: &path,
                 config_flag: args.config.as_deref(),
                 config_env: config_env.as_deref(),
@@ -65,10 +74,17 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                     fail_on,
                     ecosystems,
                     include_dev: if args.no_dev { Some(false) } else { None },
-                    agent: None,
+                    // `auto` keeps the env/file choice, then PATH search.
+                    agent: agent.filter(|choice| *choice != ExplainAgent::Auto),
                     exclude: args.exclude,
                 },
             })?;
+            if let Some(top) = args.explain_top {
+                loaded.config.explain.top = top;
+            }
+            if let Some(lang) = lang {
+                loaded.config.explain.lang = lang;
+            }
             for warning in &loaded.warnings {
                 eprintln!("warning: {warning}");
             }
@@ -100,9 +116,31 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             };
             let client = ReqwestClient::new().context("failed to build the HTTP client")?;
             let progress = progress::start_scan_progress(progress::stderr_is_tty());
-            let report = scan_with(&client, &osv_base_url(), &path, &options).await?;
+            let mut report = scan_with(&client, &osv_base_url(), &path, &options).await?;
             if let Some(bar) = &progress {
                 bar.finish_and_clear();
+            }
+            if args.explain {
+                let workdir = if path.is_dir() {
+                    path.clone()
+                } else {
+                    path.parent().unwrap_or(Path::new(".")).to_path_buf()
+                };
+                let lang = match loaded.config.explain.lang {
+                    ExplainLang::Id => agent::PromptLang::Id,
+                    ExplainLang::En => agent::PromptLang::En,
+                };
+                agent::apply_explain(
+                    &mut report,
+                    &agent::ExplainRequest {
+                        agent: loaded.config.explain.agent,
+                        top: usize::try_from(loaded.config.explain.top).unwrap_or(usize::MAX),
+                        lang,
+                        timeout: std::time::Duration::from_secs(loaded.config.explain.timeout_secs),
+                        workdir: &workdir,
+                        path: None,
+                    },
+                );
             }
             write_reports(
                 &report,

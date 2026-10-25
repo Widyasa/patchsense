@@ -146,6 +146,22 @@ pub struct ScanArgs {
     /// Write the paired `--format` to this file instead of stdout. Repeatable.
     #[arg(short = 'o', long = "output", action = ArgAction::Append, value_name = "FILE")]
     pub output: Vec<PathBuf>,
+
+    /// Ask a local coding agent to explain the top findings.
+    #[arg(long)]
+    pub explain: bool,
+
+    /// Agent for `--explain`: `auto`, `codex`, `claude`, or `cursor`.
+    #[arg(long, value_name = "AGENT")]
+    pub agent: Option<String>,
+
+    /// How many findings to send to the agent. Defaults to the config value, usually 10.
+    #[arg(long, value_name = "N")]
+    pub explain_top: Option<u32>,
+
+    /// Explanation language: `id` or `en`.
+    #[arg(long, value_name = "LANG")]
+    pub lang: Option<String>,
 }
 
 /// One scan report format.

@@ -1,10 +1,12 @@
 //! OpenAI Codex CLI. `exec` stays in the read-only sandbox.
-#![allow(dead_code)]
 
 use std::path::Path;
 use std::process::Command;
 
-use super::{assert_read_only, read_prompt, AgentAdapter, AgentError};
+use super::{read_prompt, AgentAdapter, AgentError};
+
+#[cfg(test)]
+use super::assert_read_only;
 
 /// `codex exec --sandbox read-only`.
 #[derive(Debug, Clone, Copy, Default)]

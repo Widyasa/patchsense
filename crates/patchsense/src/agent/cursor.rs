@@ -1,10 +1,12 @@
 //! Cursor CLI in print mode. `--force` is omitted, so files stay unchanged.
-#![allow(dead_code)]
 
 use std::path::Path;
 use std::process::Command;
 
-use super::{assert_read_only, json_result, read_prompt, AgentAdapter, AgentError};
+use super::{json_result, read_prompt, AgentAdapter, AgentError};
+
+#[cfg(test)]
+use super::assert_read_only;
 
 /// `agent -p --output-format json`, falling back to `cursor-agent`.
 #[derive(Debug, Clone, Copy, Default)]

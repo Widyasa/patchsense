@@ -161,4 +161,17 @@ mod tests {
         assert!(empty.contains(EMPTY));
         insta::assert_snapshot!("empty", empty);
     }
+
+    #[test]
+    fn explanation_is_labeled_as_possibly_wrong() {
+        use crate::model::Explanation;
+        let mut item = finding();
+        item.signals.explanation = Some(Explanation {
+            agent: "codex".to_string(),
+            text: "Upgrade lodash to 4.17.21.".to_string(),
+            disclaimer: "Penjelasan AI, bisa keliru".to_string(),
+        });
+        let text = render_markdown(&report(vec![item]), 20);
+        assert!(text.contains("**Penjelasan AI, bisa keliru:** Upgrade lodash to 4.17.21."));
+    }
 }

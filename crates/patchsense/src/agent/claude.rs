@@ -1,10 +1,12 @@
 //! Claude Code in print mode. No permission-bypass flag is set.
-#![allow(dead_code)]
 
 use std::path::Path;
 use std::process::Command;
 
-use super::{assert_read_only, json_result, read_prompt, AgentAdapter, AgentError};
+use super::{json_result, read_prompt, AgentAdapter, AgentError};
+
+#[cfg(test)]
+use super::assert_read_only;
 
 /// `claude -p --output-format json`.
 #[derive(Debug, Clone, Copy, Default)]
