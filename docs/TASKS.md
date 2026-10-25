@@ -229,7 +229,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: snapshot valid terhadap skema GitLab versi yang dipilih.
   - Dep: W4-T1
 
-- [ ] **W4-T6 Multi-format dan `--output` berpasangan**
+- [x] **W4-T6 Multi-format dan `--output` berpasangan**
   - Deskripsi: `--format` dan `--output` bisa diulang dan dipasangkan sesuai urutan; default `table` di TTY dan `json` di non-TTY; error bila jumlah tidak cocok (lebih dari satu format ke stdout).
   - File: `cli/cli.rs`, `cli/main.rs`
   - Selesai bila: integration test satu kali scan menghasilkan 3 file sekaligus dan request OSV hanya terjadi sekali.

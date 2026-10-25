@@ -87,11 +87,10 @@ async fn scan_prints_lodash_advisory_from_the_npm_fixture() {
     command
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "package-lock.json  lodash@4.17.14  GHSA-35jh-r3h4-6jhm",
-        ))
-        .stdout(predicate::str::contains("aliases=CVE-2021-23337"))
-        .stdout(predicate::str::contains("fixed=4.17.21"))
+        .stdout(predicate::str::contains("\"schema_version\": 1"))
+        .stdout(predicate::str::contains("GHSA-35jh-r3h4-6jhm"))
+        .stdout(predicate::str::contains("CVE-2021-23337"))
+        .stdout(predicate::str::contains("4.17.21"))
         .stdout(predicate::str::contains("Command Injection in lodash"));
 }
 
@@ -150,7 +149,9 @@ async fn broken_lockfile_beside_a_valid_one_warns_and_exits_0() {
     command
         .assert()
         .success()
-        .stdout(predicate::str::contains("lodash@4.17.14"))
+        .stdout(predicate::str::contains("lodash"))
+        .stdout(predicate::str::contains("4.17.14"))
+        .stdout(predicate::str::contains("\"schema_version\": 1"))
         .stderr(predicate::str::contains("a-bad/package-lock.json"));
 }
 
@@ -216,7 +217,8 @@ async fn ecosystem_filter_and_unknown_ecosystem() {
     command
         .assert()
         .success()
-        .stdout(predicate::str::is_empty());
+        .stdout(predicate::str::contains("\"schema_version\": 1"))
+        .stdout(predicate::str::contains("\"findings\": []"));
 
     let mut command = Command::cargo_bin("patchsense").expect("binary");
     command
@@ -324,6 +326,101 @@ async fn kev_advisory_fails_critical_and_passes_never() {
         .env("NO_COLOR", "1");
     enrichment_env(&mut never, &server);
     never.assert().success();
+}
+
+#[tokio::test]
+async fn one_scan_writes_three_files_and_queries_osv_once() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/querybatch"))
+        .respond_with(querybatch_body)
+        .expect(1)
+        .mount(&server)
+        .await;
+    let advisory = std::fs::read_to_string(repo_path(
+        "../../tests/fixtures/osv/vulns/GHSA-35jh-r3h4-6jhm.json",
+    ))
+    .expect("advisory fixture");
+    Mock::given(method("GET"))
+        .and(path("/v1/vulns/GHSA-35jh-r3h4-6jhm"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(advisory))
+        .expect(1)
+        .mount(&server)
+        .await;
+    mount_empty_enrichment(&server).await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join("package-lock.json"),
+        r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+    )
+    .expect("lock");
+    let out = tempfile::tempdir().expect("outdir");
+    let json_path = out.path().join("report.json");
+    let sarif_path = out.path().join("report.sarif");
+    let gitlab_path = out.path().join("gl-dependency-scanning-report.json");
+
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg("--no-cache")
+        .arg(dir.path())
+        .arg("--format")
+        .arg("json")
+        .arg("--output")
+        .arg(&json_path)
+        .arg("--format")
+        .arg("sarif")
+        .arg("--output")
+        .arg(&sarif_path)
+        .arg("--format")
+        .arg("gitlab")
+        .arg("--output")
+        .arg(&gitlab_path)
+        .env("PATCHSENSE_OSV_URL", server.uri())
+        .env("NO_COLOR", "1");
+    enrichment_env(&mut command, &server);
+    command
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    server.verify().await;
+    let requests = server.received_requests().await.expect("requests");
+    let batches = requests
+        .iter()
+        .filter(|request| request.url.path() == "/v1/querybatch")
+        .count();
+    assert_eq!(batches, 1);
+
+    let json = std::fs::read_to_string(&json_path).expect("json");
+    assert!(json.contains("\"schema_version\": 1"));
+    assert!(json.contains("GHSA-35jh-r3h4-6jhm"));
+    assert!(json.contains("CVE-2021-23337"));
+    let sarif = std::fs::read_to_string(&sarif_path).expect("sarif");
+    assert!(sarif.contains("\"version\": \"2.1.0\""));
+    assert!(sarif.contains("GHSA-35jh-r3h4-6jhm"));
+    let gitlab = std::fs::read_to_string(&gitlab_path).expect("gitlab");
+    assert!(gitlab.contains("dependency_scanning"));
+    assert!(gitlab.contains("GHSA-35jh-r3h4-6jhm"));
+}
+
+#[test]
+fn two_formats_without_output_exit_2() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg(dir.path())
+        .arg("--format")
+        .arg("json")
+        .arg("--format")
+        .arg("sarif")
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("stdout"));
 }
 
 #[test]

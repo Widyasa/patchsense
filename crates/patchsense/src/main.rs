@@ -16,9 +16,10 @@ use patchsense_core::enrich::epss::epss_base_url;
 use patchsense_core::enrich::kev::kev_feed_url;
 use patchsense_core::http::{osv_base_url, ReqwestClient};
 use patchsense_core::model::{Ecosystem, Report};
+use patchsense_core::report::{render_gitlab, render_json, render_markdown, render_sarif};
 use patchsense_core::scan::{scan_with, ScanOptions};
 
-use crate::cli::{CacheCommand, Cli, Command};
+use crate::cli::{CacheCommand, Cli, Command, ReportFormat};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -65,6 +66,8 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             for warning in &loaded.warnings {
                 eprintln!("warning: {warning}");
             }
+            let plan = plan_outputs(&args.format, &args.output, progress::stdout_is_tty())?;
+            let top = usize::try_from(loaded.config.output.top).unwrap_or(usize::MAX);
             let options = ScanOptions {
                 keep_going: !args.no_keep_going,
                 ecosystems: if loaded.config.scans_every_ecosystem() {
@@ -95,7 +98,13 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             if let Some(bar) = &progress {
                 bar.finish_and_clear();
             }
-            print_report(&report, args.no_color, args.min_score.unwrap_or(0));
+            write_reports(
+                &report,
+                &plan,
+                args.no_color,
+                args.min_score.unwrap_or(0),
+                top,
+            )?;
             if report.summary.failed {
                 Ok(ExitCode::from(1))
             } else {
@@ -156,33 +165,176 @@ fn cache_db_path(flag: Option<&Path>) -> PathBuf {
     })
 }
 
-fn print_report(report: &Report, no_color: bool, min_score: u32) {
-    let stdout_tty = progress::stdout_is_tty();
-    let color =
-        progress::colors_enabled(no_color, std::env::var_os("NO_COLOR").is_some(), stdout_tty);
-    if stdout_tty {
-        print!("{}", table::render_table(report, color, min_score));
+/// One rendered report, either a file or stdout.
+#[derive(Debug)]
+struct PlannedOutput {
+    format: ReportFormat,
+    path: Option<PathBuf>,
+}
+
+/// Pair `--format` with `--output`.
+///
+/// Extra formats beyond the output list go to stdout. More than one stdout
+/// format is an error. With no flags, a TTY gets `table` and anything else
+/// gets `json`, both on stdout. A single `--output` without `--format` uses
+/// that same default.
+fn plan_outputs(
+    formats: &[ReportFormat],
+    outputs: &[PathBuf],
+    stdout_tty: bool,
+) -> anyhow::Result<Vec<PlannedOutput>> {
+    let default_format = if stdout_tty {
+        ReportFormat::Table
     } else {
-        for finding in report
-            .findings
-            .iter()
-            .filter(|finding| finding.score >= min_score)
-        {
-            let aliases = finding.advisory.aliases.join(",");
-            let fixed = finding.advisory.fixed_versions.join(",");
-            println!(
-                "{}  {}@{}  {}  aliases={}  fixed={}  {}",
-                finding.package.source_file,
-                finding.package.name,
-                finding.package.version,
-                finding.advisory.id,
-                aliases,
-                fixed,
-                finding.advisory.summary
+        ReportFormat::Json
+    };
+    if formats.is_empty() {
+        if outputs.len() > 1 {
+            anyhow::bail!(
+                "more than one --output was given without --format; pass one --format per file"
             );
+        }
+        return Ok(vec![PlannedOutput {
+            format: default_format,
+            path: outputs.first().cloned(),
+        }]);
+    }
+    if outputs.len() > formats.len() {
+        anyhow::bail!(
+            "more --output values ({}) than --format values ({})",
+            outputs.len(),
+            formats.len()
+        );
+    }
+    let stdout_count = formats.len() - outputs.len();
+    if stdout_count > 1 {
+        anyhow::bail!(
+            "more than one --format would be written to stdout; pair each --format with --output"
+        );
+    }
+    Ok(formats
+        .iter()
+        .enumerate()
+        .map(|(index, format)| PlannedOutput {
+            format: *format,
+            path: outputs.get(index).cloned(),
+        })
+        .collect())
+}
+
+fn write_reports(
+    report: &Report,
+    plan: &[PlannedOutput],
+    no_color: bool,
+    min_score: u32,
+    top: usize,
+) -> anyhow::Result<()> {
+    let mut shown = report.clone();
+    shown.findings.retain(|finding| finding.score >= min_score);
+    let stdout_tty = progress::stdout_is_tty();
+    let no_color_env = std::env::var_os("NO_COLOR").is_some();
+    for target in plan {
+        let color =
+            target.path.is_none() && progress::colors_enabled(no_color, no_color_env, stdout_tty);
+        let text = render_format(&shown, target.format, color, top)?;
+        match &target.path {
+            Some(path) => {
+                if let Some(parent) = path.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        std::fs::create_dir_all(parent)
+                            .with_context(|| format!("failed to create {}", parent.display()))?;
+                    }
+                }
+                std::fs::write(path, &text)
+                    .with_context(|| format!("failed to write {}", path.display()))?;
+            }
+            None => print!("{text}"),
         }
     }
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
+    }
+    Ok(())
+}
+
+fn render_format(
+    report: &Report,
+    format: ReportFormat,
+    color: bool,
+    top: usize,
+) -> anyhow::Result<String> {
+    match format {
+        ReportFormat::Table => Ok(table::render_table(report, color, 0)),
+        ReportFormat::Json => Ok(render_json(report)?),
+        ReportFormat::Sarif => Ok(render_sarif(report)?),
+        ReportFormat::Markdown => Ok(render_markdown(report, top)),
+        ReportFormat::Gitlab => Ok(render_gitlab(report)?),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_non_tty_is_json_on_stdout() {
+        let plan = plan_outputs(&[], &[], false).expect("plan");
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan[0].format, ReportFormat::Json);
+        assert!(plan[0].path.is_none());
+    }
+
+    #[test]
+    fn default_tty_is_table_on_stdout() {
+        let plan = plan_outputs(&[], &[], true).expect("plan");
+        assert_eq!(plan[0].format, ReportFormat::Table);
+        assert!(plan[0].path.is_none());
+    }
+
+    #[test]
+    fn formats_pair_with_outputs_in_order() {
+        let formats = [
+            ReportFormat::Json,
+            ReportFormat::Sarif,
+            ReportFormat::Gitlab,
+        ];
+        let outputs = [
+            PathBuf::from("a.json"),
+            PathBuf::from("b.sarif"),
+            PathBuf::from("c.json"),
+        ];
+        let plan = plan_outputs(&formats, &outputs, false).expect("plan");
+        assert_eq!(plan.len(), 3);
+        assert!(plan.iter().all(|item| item.path.is_some()));
+        assert_eq!(plan[1].format, ReportFormat::Sarif);
+        assert_eq!(plan[1].path.as_deref(), Some(outputs[1].as_path()));
+    }
+
+    #[test]
+    fn one_unpaired_format_goes_to_stdout() {
+        let formats = [ReportFormat::Json, ReportFormat::Markdown];
+        let outputs = [PathBuf::from("a.json")];
+        let plan = plan_outputs(&formats, &outputs, false).expect("plan");
+        assert!(plan[0].path.is_some());
+        assert_eq!(plan[1].format, ReportFormat::Markdown);
+        assert!(plan[1].path.is_none());
+    }
+
+    #[test]
+    fn two_formats_on_stdout_are_an_error() {
+        let err = plan_outputs(&[ReportFormat::Json, ReportFormat::Sarif], &[], false)
+            .expect_err("two stdout formats");
+        assert!(err.to_string().contains("stdout"));
+    }
+
+    #[test]
+    fn extra_output_is_an_error() {
+        let err = plan_outputs(
+            &[ReportFormat::Json],
+            &[PathBuf::from("a.json"), PathBuf::from("b.json")],
+            false,
+        )
+        .expect_err("extra output");
+        assert!(err.to_string().contains("--output"));
     }
 }
