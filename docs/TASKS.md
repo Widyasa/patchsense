@@ -329,7 +329,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: kedua dry-run sukses. `patchsense-core` dry-run sukses. `patchsense` sudah memakai `version = "0.1.0"` pada dependency path, tetapi dry-run crates.io tertahan sampai `patchsense-core` 0.1.0 benar-benar terbit (langkah Widya, agent tidak publish).
   - Dep: W6-T1
 
-- [ ] **W6-T5 Demo PHP2Shell dan GIF**
+- [x] **W6-T5 Demo PHP2Shell dan GIF**
   - Deskripsi: rapikan `examples/php2shell-demo/`, skrip `vhs` (`demo.tape`) yang menjalankan `patchsense scan examples/php2shell-demo`, hasilkan GIF.
   - File: `examples/`, `docs/demo.tape`, `docs/demo.gif`
   - Selesai bila: GIF menunjukkan temuan PHP2Shell bertingkat Kritis. Bila advisory PHP2Shell belum ada di OSV/KEV saat itu, pakai CVE KEV lain yang nyata dan catat di PR.
