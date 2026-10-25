@@ -72,6 +72,7 @@ fn parse_go_sum(path: &Path, content: &str) -> Result<ParsedLockfile, CoreError>
                 direct,
                 dev: false,
                 source_file: source.clone(),
+                source_files: Vec::new(),
                 line: None,
             }
         })

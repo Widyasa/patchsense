@@ -82,3 +82,121 @@ async fn scan_without_a_lockfile_exits_2() {
         .code(2)
         .stderr(predicate::str::contains("no supported lockfile"));
 }
+
+#[tokio::test]
+async fn broken_lockfile_beside_a_valid_one_warns_and_exits_0() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/querybatch"))
+        .respond_with(querybatch_body)
+        .mount(&server)
+        .await;
+    let advisory = std::fs::read_to_string(repo_path(
+        "../../tests/fixtures/osv/vulns/GHSA-35jh-r3h4-6jhm.json",
+    ))
+    .expect("advisory fixture");
+    Mock::given(method("GET"))
+        .and(path("/v1/vulns/GHSA-35jh-r3h4-6jhm"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(advisory))
+        .mount(&server)
+        .await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(dir.path().join("a-bad")).expect("dir");
+    std::fs::create_dir(dir.path().join("b-good")).expect("dir");
+    std::fs::write(dir.path().join("a-bad/package-lock.json"), "{").expect("bad");
+    std::fs::write(
+        dir.path().join("b-good/package-lock.json"),
+        r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+    )
+    .expect("good");
+
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg(dir.path())
+        .env("PATCHSENSE_OSV_URL", server.uri())
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("lodash@4.17.14"))
+        .stderr(predicate::str::contains("a-bad/package-lock.json"));
+}
+
+#[tokio::test]
+async fn every_broken_lockfile_exits_2() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(dir.path().join("a")).expect("dir");
+    std::fs::create_dir(dir.path().join("b")).expect("dir");
+    std::fs::write(dir.path().join("a/package-lock.json"), "{").expect("bad");
+    std::fs::write(dir.path().join("b/package-lock.json"), "[]").expect("bad");
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg(dir.path())
+        .env("PATCHSENSE_OSV_URL", "http://127.0.0.1:9")
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("package-lock.json"));
+}
+
+#[tokio::test]
+async fn no_keep_going_exits_2_when_one_file_fails() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(dir.path().join("a-bad")).expect("dir");
+    std::fs::create_dir(dir.path().join("b-good")).expect("dir");
+    std::fs::write(dir.path().join("a-bad/package-lock.json"), "{").expect("bad");
+    std::fs::write(
+        dir.path().join("b-good/package-lock.json"),
+        r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+    )
+    .expect("good");
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg("--no-keep-going")
+        .arg(dir.path())
+        .env("PATCHSENSE_OSV_URL", "http://127.0.0.1:9")
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("a-bad/package-lock.json"));
+}
+
+#[tokio::test]
+async fn ecosystem_filter_and_unknown_ecosystem() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join("package-lock.json"),
+        r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+    )
+    .expect("lock");
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg(dir.path())
+        .arg("--ecosystem")
+        .arg("pypi")
+        .env("PATCHSENSE_OSV_URL", "http://127.0.0.1:9")
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg(dir.path())
+        .arg("--ecosystem")
+        .arg("not-an-ecosystem")
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("unknown ecosystem"));
+}

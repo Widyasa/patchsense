@@ -129,7 +129,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata (salah satunya boleh `Cargo.lock` repo ini sendiri), snapshot lolos.
   - Dep: W1-T4
 
-- [ ] **W2-T8 Dedupe, `--keep-going`, filter ekosistem dan dev**
+- [x] **W2-T8 Dedupe, `--keep-going`, filter ekosistem dan dev**
   - Deskripsi: dedupe paket lintas lockfile (ekosistem+nama+versi, pertahankan semua `source_file`), kumpulkan warning per file, file gagal tidak menghentikan scan kecuali semuanya gagal (exit 2). Terapkan `--ecosystem` dan `--no-dev`.
   - File: `core/scan.rs`, `cli/cli.rs`
   - Selesai bila: tes: satu file rusak + satu valid → scan jalan dengan warning; semua rusak → exit 2; filter bekerja.
