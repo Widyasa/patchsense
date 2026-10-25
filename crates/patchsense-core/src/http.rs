@@ -76,6 +76,9 @@ pub trait HttpClient: Send + Sync {
 
     /// HTTP PATCH with a JSON body and `Content-Type: application/json`.
     async fn patch_json(&self, url: &str, body: &Value) -> Result<HttpResponse, CoreError>;
+
+    /// HTTP PUT with a JSON body and `Content-Type: application/json`.
+    async fn put_json(&self, url: &str, body: &Value) -> Result<HttpResponse, CoreError>;
 }
 
 /// Wraps a client and retries HTTP 429 and 5xx.
@@ -131,6 +134,18 @@ where
             attempt += 1;
         }
     }
+
+    async fn put_json(&self, url: &str, body: &Value) -> Result<HttpResponse, CoreError> {
+        let mut attempt = 0u32;
+        loop {
+            let result = self.inner.put_json(url, body).await;
+            if !should_retry(&result) || attempt >= self.policy.max_retries {
+                return result;
+            }
+            backoff(self.policy.initial_backoff, attempt).await;
+            attempt += 1;
+        }
+    }
 }
 
 fn should_retry(result: &Result<HttpResponse, CoreError>) -> bool {
@@ -159,44 +174,60 @@ pub struct ReqwestClient {
 impl ReqwestClient {
     /// Build a client with user-agent `patchsense/<version>` and a 30 second timeout.
     pub fn new() -> Result<Self, CoreError> {
-        Self::build(None)
+        Self::build(reqwest::header::HeaderMap::new())
     }
 
-    /// Same as [`Self::new`], plus a bearer token on every request.
+    /// Same as [`Self::new`], plus a GitHub bearer token on every request.
     ///
     /// The header is marked sensitive so debug output does not print the token.
     pub fn with_bearer(token: &str) -> Result<Self, CoreError> {
-        Self::build(Some(token))
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::AUTHORIZATION,
+            sensitive_header(&format!("Bearer {token}"))?,
+        );
+        headers.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static("application/vnd.github+json"),
+        );
+        Self::build(headers)
     }
 
-    fn build(token: Option<&str>) -> Result<Self, CoreError> {
-        let mut builder = reqwest::Client::builder()
+    /// Same as [`Self::new`], plus a GitLab `PRIVATE-TOKEN` header.
+    pub fn with_private_token(token: &str) -> Result<Self, CoreError> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::HeaderName::from_static("private-token"),
+            sensitive_header(token)?,
+        );
+        Self::build(headers)
+    }
+
+    fn build(headers: reqwest::header::HeaderMap) -> Result<Self, CoreError> {
+        let client = reqwest::Client::builder()
             .user_agent(format!("patchsense/{VERSION}"))
-            .timeout(Duration::from_secs(30));
-        if let Some(token) = token {
-            let mut headers = reqwest::header::HeaderMap::new();
-            let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
-                .map_err(|err| CoreError::Http {
-                    url: "reqwest".to_string(),
-                    message: format!("invalid bearer token: {err}"),
-                })?;
-            value.set_sensitive(true);
-            headers.insert(reqwest::header::AUTHORIZATION, value);
-            headers.insert(
-                reqwest::header::ACCEPT,
-                reqwest::header::HeaderValue::from_static("application/vnd.github+json"),
-            );
-            builder = builder.default_headers(headers);
-        }
-        let client = builder.build().map_err(|err| CoreError::Http {
-            url: "reqwest".to_string(),
-            message: format!("failed to build HTTP client: {err}"),
-        })?;
+            .timeout(Duration::from_secs(30))
+            .default_headers(headers)
+            .build()
+            .map_err(|err| CoreError::Http {
+                url: "reqwest".to_string(),
+                message: format!("failed to build HTTP client: {err}"),
+            })?;
         Ok(Self {
             client,
             policy: RetryPolicy::default(),
         })
     }
+}
+
+fn sensitive_header(value: &str) -> Result<reqwest::header::HeaderValue, CoreError> {
+    let mut header =
+        reqwest::header::HeaderValue::from_str(value).map_err(|err| CoreError::Http {
+            url: "reqwest".to_string(),
+            message: format!("invalid token header: {err}"),
+        })?;
+    header.set_sensitive(true);
+    Ok(header)
 }
 
 #[async_trait]
@@ -240,6 +271,22 @@ impl HttpClient for ReqwestClient {
         let mut attempt = 0u32;
         loop {
             let result = send_reqwest(client.patch(&url_owned).json(&payload), &url_owned).await;
+            if !should_retry(&result) || attempt >= policy.max_retries {
+                return result;
+            }
+            backoff(policy.initial_backoff, attempt).await;
+            attempt += 1;
+        }
+    }
+
+    async fn put_json(&self, url: &str, body: &Value) -> Result<HttpResponse, CoreError> {
+        let client = self.client.clone();
+        let url_owned = url.to_string();
+        let payload = body.clone();
+        let policy = self.policy;
+        let mut attempt = 0u32;
+        loop {
+            let result = send_reqwest(client.put(&url_owned).json(&payload), &url_owned).await;
             if !should_retry(&result) || attempt >= policy.max_retries {
                 return result;
             }
@@ -337,6 +384,14 @@ impl HttpClient for FakeHttp {
     async fn patch_json(&self, url: &str, body: &Value) -> Result<HttpResponse, CoreError> {
         self.dispatch(RecordedRequest {
             method: "PATCH".to_string(),
+            url: url.to_string(),
+            body: body.to_string(),
+        })
+    }
+
+    async fn put_json(&self, url: &str, body: &Value) -> Result<HttpResponse, CoreError> {
+        self.dispatch(RecordedRequest {
+            method: "PUT".to_string(),
             url: url.to_string(),
             body: body.to_string(),
         })
