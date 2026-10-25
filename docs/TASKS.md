@@ -267,7 +267,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: YAML valid (lolos linter YAML) dan diuji manual sekali di proyek GitLab uji (catat hasilnya di PR). Uji manual dilakukan Widya bila agent tidak punya akses GitLab.
   - Dep: W4-T5, W5-T2
 
-- [ ] **W5-T5 Server MCP: kerangka dan `list_supported_lockfiles`**
+- [x] **W5-T5 Server MCP: kerangka dan `list_supported_lockfiles`**
   - Deskripsi: `patchsense mcp` dengan `rmcp` transport stdio, log hanya ke stderr, tool `list_supported_lockfiles`.
   - File: `cli/mcp.rs`, `cli/cli.rs`
   - Selesai bila: integration test menjalankan proses, mengirim `initialize` dan `tools/list`, dan menerima daftar tool.
