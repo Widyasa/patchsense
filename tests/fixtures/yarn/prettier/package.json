@@ -1,0 +1,7 @@
+{
+  "name": "prettier",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/code-frame": "7.0.0"
+  }
+}

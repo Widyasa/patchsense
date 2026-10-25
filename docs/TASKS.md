@@ -93,7 +93,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: fixture nyata v6 dan v9, snapshot lolos.
   - Dep: W1-T4
 
-- [ ] **W2-T2 Parser `yarn.lock` classic (v1)**
+- [x] **W2-T2 Parser `yarn.lock` classic (v1)**
   - Deskripsi: parser manual format yarn v1 (blok `"spec", spec:` + `version "x"`). `direct` dari `package.json` sebelahnya bila ada.
   - File: `core/lockfile/yarn.rs`, `tests/fixtures/yarn/`
   - Selesai bila: ≥2 fixture nyata, scoped package benar, snapshot lolos.
