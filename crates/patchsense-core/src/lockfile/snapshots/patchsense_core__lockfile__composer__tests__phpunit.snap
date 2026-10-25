@@ -1,0 +1,19 @@
+---
+source: crates/patchsense-core/src/lockfile/composer.rs
+expression: parsed
+---
+ecosystem: Packagist
+packages:
+  - ecosystem: Packagist
+    name: myclabs/deep-copy
+    version: 1.11.1
+    direct: true
+    dev: false
+    source_file: tests/fixtures/composer/phpunit/composer.lock
+  - ecosystem: Packagist
+    name: nikic/php-parser
+    version: 4.17.1
+    direct: false
+    dev: false
+    source_file: tests/fixtures/composer/phpunit/composer.lock
+warnings: []

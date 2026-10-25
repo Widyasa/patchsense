@@ -1,0 +1,13 @@
+{
+  "packages": [
+    {
+      "name": "myclabs/deep-copy",
+      "version": "1.11.1"
+    },
+    {
+      "name": "nikic/php-parser",
+      "version": "v4.17.1"
+    }
+  ],
+  "packages-dev": []
+}

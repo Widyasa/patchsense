@@ -1,0 +1,12 @@
+{
+  "name": "composer/composer",
+  "license": "MIT",
+  "require": {
+    "php": "^7.2.5 || ^8.0",
+    "composer/ca-bundle": "^1.0",
+    "justinrainbow/json-schema": "^5.2.11"
+  },
+  "require-dev": {
+    "symfony/phpunit-bridge": "^6.4.1 || ^7.0.1"
+  }
+}

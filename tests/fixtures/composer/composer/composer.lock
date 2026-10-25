@@ -1,0 +1,18 @@
+{
+  "packages": [
+    {
+      "name": "composer/ca-bundle",
+      "version": "1.4.0"
+    },
+    {
+      "name": "justinrainbow/json-schema",
+      "version": "v5.2.13"
+    }
+  ],
+  "packages-dev": [
+    {
+      "name": "symfony/phpunit-bridge",
+      "version": "v7.0.3"
+    }
+  ]
+}

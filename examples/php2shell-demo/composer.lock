@@ -1,0 +1,9 @@
+{
+  "content-hash": "php2shell-demo",
+  "packages": [],
+  "packages-dev": [],
+  "platform": {
+    "php": "8.3.35"
+  },
+  "platform-dev": []
+}
