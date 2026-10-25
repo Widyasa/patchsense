@@ -161,7 +161,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes chunking (250 CVE → 3 request), parsing, dan cache hit.
   - Dep: W3-T1, W1-T9
 
-- [ ] **W3-T4 Enricher KEV**
+- [x] **W3-T4 Enricher KEV**
   - Deskripsi: unduh feed KEV JSON, simpan per `catalogVersion`, bangun `HashMap<cve, KevEntry>`. Refresh maksimal sekali per 24 jam.
   - File: `core/enrich/kev.rs`, `tests/fixtures/kev/kev_small.json` (potongan feed asli, beberapa entri)
   - Selesai bila: tes lookup, TTL, dan field `knownRansomwareCampaignUse`.
