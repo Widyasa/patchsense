@@ -9,12 +9,14 @@ use std::path::Path;
 use crate::error::CoreError;
 use crate::model::{Ecosystem, ParsedLockfile};
 
+mod composer;
 mod npm;
 mod pnpm;
 mod poetry;
 mod requirements;
 mod yarn;
 
+use composer::ComposerParser;
 use npm::NpmPackageLockParser;
 use pnpm::PnpmParser;
 use poetry::PoetryParser;
@@ -66,10 +68,7 @@ const PNPM_LOCK: PnpmParser = PnpmParser;
 const YARN_LOCK: YarnParser = YarnParser;
 const POETRY_LOCK: PoetryParser = PoetryParser;
 const REQUIREMENTS: RequirementsParser = RequirementsParser;
-const COMPOSER_LOCK: FileNameParser = FileNameParser {
-    file_name: "composer.lock",
-    ecosystem: Ecosystem::Packagist,
-};
+const COMPOSER_LOCK: ComposerParser = ComposerParser;
 const GO_SUM: FileNameParser = FileNameParser {
     file_name: "go.sum",
     ecosystem: Ecosystem::Go,
@@ -177,13 +176,13 @@ mod tests {
 
     #[test]
     fn unimplemented_parser_names_the_file() {
-        let path = Path::new("composer.lock");
+        let path = Path::new("go.sum");
         let err = parser_for(path)
             .expect("parser")
-            .parse(path, "{}")
+            .parse(path, "")
             .expect_err("stub");
         let message = err.to_string();
-        assert!(message.contains("composer.lock"), "{message}");
+        assert!(message.contains("go.sum"), "{message}");
         assert!(message.contains("not implemented"), "{message}");
     }
 

@@ -1,0 +1,8 @@
+{
+  "name": "patchsense/php2shell-demo",
+  "description": "Example project pinned to a PHP runtime affected by PHP2Shell.",
+  "license": "MIT",
+  "require": {
+    "php": "8.3.35"
+  }
+}

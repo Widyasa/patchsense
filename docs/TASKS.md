@@ -105,7 +105,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: fixture nyata Berry, snapshot lolos, file yang sama tidak salah dideteksi sebagai classic.
   - Dep: W2-T2
 
-- [ ] **W2-T4 Parser `composer.lock`**
+- [x] **W2-T4 Parser `composer.lock`**
   - Deskripsi: `packages` (direct/transitif dari `composer.json` `require`) dan `packages-dev` (dev). Versi tanpa prefix `v` untuk OSV Packagist (normalisasi, catat di kode).
   - File: `core/lockfile/composer.rs`, `tests/fixtures/composer/`
   - Selesai bila: ≥2 fixture nyata, satu fixture demo PHP2Shell disiapkan di `examples/php2shell-demo/` (versi PHP/paket rentan sesuai advisory), snapshot lolos.
