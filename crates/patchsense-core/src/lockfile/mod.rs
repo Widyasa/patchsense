@@ -9,6 +9,10 @@ use std::path::Path;
 use crate::error::CoreError;
 use crate::model::{Ecosystem, ParsedLockfile};
 
+mod npm;
+
+use npm::NpmPackageLockParser;
+
 /// A lockfile format PatchSense knows how to read.
 pub trait LockfileParser: Send + Sync {
     /// Ecosystem this parser produces.
@@ -49,10 +53,7 @@ impl LockfileParser for FileNameParser {
     }
 }
 
-const PACKAGE_LOCK: FileNameParser = FileNameParser {
-    file_name: "package-lock.json",
-    ecosystem: Ecosystem::Npm,
-};
+const NPM_PACKAGE_LOCK: NpmPackageLockParser = NpmPackageLockParser;
 const PNPM_LOCK: FileNameParser = FileNameParser {
     file_name: "pnpm-lock.yaml",
     ecosystem: Ecosystem::Npm,
@@ -88,7 +89,7 @@ const CARGO_LOCK: FileNameParser = FileNameParser {
 
 /// Parsers in the order they are tried. File names in the MVP do not overlap.
 static PARSERS: &[&dyn LockfileParser] = &[
-    &PACKAGE_LOCK,
+    &NPM_PACKAGE_LOCK,
     &PNPM_LOCK,
     &YARN_LOCK,
     &POETRY_LOCK,

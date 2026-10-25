@@ -43,7 +43,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes dengan `tempfile` membuktikan direktori default dilewati, exclude bekerja, dan urutan hasil deterministik (diurutkan).
   - Dep: W1-T4
 
-- [ ] **W1-T6 Parser `package-lock.json`**
+- [x] **W1-T6 Parser `package-lock.json`**
   - Deskripsi: dukung lockfileVersion 2/3 (`packages`) dan v1 (`dependencies`) best effort. Ambil nama dari key `node_modules/<nama>` (termasuk scoped dan nested), tandai `dev`, tentukan `direct` dari `packages[""]`. Lewati entri `link: true`.
   - File: `core/lockfile/npm.rs`, `tests/fixtures/npm/<proyek>/package-lock.json` (+ `SOURCE.md`)
   - Selesai bila: ≥2 fixture nyata (satu v3, satu v1 atau v2), snapshot `insta` daftar paket, tes lockfile rusak memberi `CoreError` dengan nama file.
