@@ -1,0 +1,20 @@
+# Build
+/target
+**/target
+
+# Rust
+**/*.rs.bk
+*.pdb
+
+# insta
+*.snap.new
+*.snap.pending
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local env
+.env
+*.log

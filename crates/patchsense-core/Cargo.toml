@@ -1,0 +1,18 @@
+[package]
+name = "patchsense-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Library for PatchSense lockfile parsing, OSV matching, and priority scoring"
+readme.workspace = true
+keywords.workspace = true
+categories = ["development-tools"]
+
+[lints]
+workspace = true
+
+[dependencies]
