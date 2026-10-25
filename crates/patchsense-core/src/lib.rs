@@ -3,6 +3,7 @@
 //! This crate does not print to a terminal and does not depend on CLI crates.
 
 pub mod error;
+pub mod lockfile;
 pub mod model;
 
 pub use error::CoreError;

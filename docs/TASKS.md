@@ -31,7 +31,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: semua tipe `Serialize`/`Deserialize`; unit test pemetaan nama ekosistem config → OSV (PRD §7) lolos.
   - Dep: W1-T1
 
-- [ ] **W1-T4 Trait parser dan registry**
+- [x] **W1-T4 Trait parser dan registry**
   - Deskripsi: trait `LockfileParser` (PRD §10.2) dan fungsi `parser_for(path) -> Option<&dyn LockfileParser>` berdasarkan nama file. Normalisasi nama PyPI (PEP 503) sebagai helper.
   - File: `core/lockfile/mod.rs`
   - Selesai bila: unit test pemetaan nama file → parser untuk 9 nama file di PRD §5.1 (parser belum ada boleh `todo` di balik feature internal, atau registry diisi bertahap).
