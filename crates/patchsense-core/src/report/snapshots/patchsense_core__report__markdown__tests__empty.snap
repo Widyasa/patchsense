@@ -1,0 +1,6 @@
+---
+source: crates/patchsense-core/src/report/markdown.rs
+expression: empty
+---
+<!-- patchsense-report -->
+Tidak ada kerentanan
