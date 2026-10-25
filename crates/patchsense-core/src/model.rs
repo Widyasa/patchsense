@@ -89,7 +89,13 @@ pub struct Package {
     #[serde(default)]
     pub dev: bool,
     /// Lockfile path, relative to the scan root when the caller passes one.
+    ///
+    /// After dedupe this is every contributing path, sorted and joined with `, `.
     pub source_file: String,
+    /// Every lockfile that contributed this package, sorted. Empty in parser
+    /// output; [`crate::scan`] fills it when paths are merged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_files: Vec<String>,
     /// 1-based line of the package declaration, when the parser records it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<u32>,
@@ -251,6 +257,7 @@ mod tests {
             direct: Some(true),
             dev: false,
             source_file: "package-lock.json".to_string(),
+            source_files: Vec::new(),
             line: None,
         };
         let advisory = Advisory {

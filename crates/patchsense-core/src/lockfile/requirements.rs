@@ -52,6 +52,7 @@ fn parse_requirements(path: &Path, content: &str) -> Result<ParsedLockfile, Core
                 direct: Some(true),
                 dev: false,
                 source_file: source.clone(),
+                source_files: Vec::new(),
                 line: Some(u32::try_from(line_no).unwrap_or(u32::MAX)),
             }),
             None => warnings.push(format!("{source}:{line_no}: baris tidak dipin, dilewati")),

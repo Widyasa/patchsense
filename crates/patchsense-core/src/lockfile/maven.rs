@@ -292,6 +292,7 @@ impl PomReader<'_> {
             direct: Some(true),
             dev: dep.scope.eq_ignore_ascii_case("test"),
             source_file: source,
+            source_files: Vec::new(),
             line: Some(dep.line),
         });
     }

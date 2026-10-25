@@ -366,6 +366,7 @@ mod tests {
             direct: Some(true),
             dev: false,
             source_file: "package-lock.json".to_string(),
+            source_files: Vec::new(),
             line: None,
         }
     }

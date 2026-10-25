@@ -112,6 +112,7 @@ fn parse_cargo_lock(path: &Path, content: &str) -> Result<ParsedLockfile, CoreEr
             direct,
             dev,
             source_file: source.clone(),
+            source_files: Vec::new(),
             line: None,
         });
     }

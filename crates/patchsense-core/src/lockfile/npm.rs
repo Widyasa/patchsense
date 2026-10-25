@@ -127,6 +127,7 @@ fn parse_packages_map(
             direct,
             dev,
             source_file: source.to_string(),
+            source_files: Vec::new(),
             line: None,
         });
     }
@@ -196,6 +197,7 @@ fn walk_v1(
                     direct: Some(direct),
                     dev,
                     source_file: source.to_string(),
+                    source_files: Vec::new(),
                     line: None,
                 });
             }

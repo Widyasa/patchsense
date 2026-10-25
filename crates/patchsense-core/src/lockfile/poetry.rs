@@ -117,6 +117,7 @@ fn parse_poetry(path: &Path, content: &str) -> Result<ParsedLockfile, CoreError>
             direct,
             dev,
             source_file: source.clone(),
+            source_files: Vec::new(),
             line: None,
         });
     }

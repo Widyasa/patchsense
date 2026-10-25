@@ -198,6 +198,7 @@ fn package_from(
         direct,
         dev,
         source_file: source.to_string(),
+        source_files: Vec::new(),
         line: None,
     }
 }
