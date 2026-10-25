@@ -1,5 +1,7 @@
 //! PatchSense binary.
 
+#[allow(dead_code)] // `scan --explain` calls this module in W5-T9.
+mod agent;
 mod cli;
 mod comment;
 mod init;
