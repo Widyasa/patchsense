@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use tokio::sync::Semaphore;
 
+use crate::cache::{Cache, CachedOsvRef};
 use crate::error::CoreError;
 use crate::http::{join_url, HttpClient, HttpResponse};
 use crate::model::{Advisory, Package, Severity};
@@ -198,6 +199,133 @@ where
         advisories.push(advisory);
     }
     Ok(advisories)
+}
+
+/// How a scan should use the SQLite cache while loading advisory documents.
+pub struct AdvisoryCache<'a> {
+    /// Open cache. `None` always uses the network (unless `offline`).
+    pub cache: Option<&'a Cache>,
+    /// Skip the network. Misses are warnings.
+    pub offline: bool,
+    /// Unix seconds for the TTL check and for new rows.
+    pub now: i64,
+    /// Maximum age of a cached row.
+    pub ttl: std::time::Duration,
+}
+
+/// Fetch advisories, using `cache` when `modified` matches and the TTL holds.
+///
+/// Offline misses become warnings and are omitted. They do not call `client`.
+pub async fn fetch_advisories_cached<C>(
+    client: &C,
+    base_url: &str,
+    vulns: &[OsvVulnRef],
+    package: &Package,
+    fetch: &AdvisoryCache<'_>,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<Advisory>, CoreError>
+where
+    C: HttpClient,
+{
+    let mut advisories = Vec::new();
+    for vuln in vulns {
+        match fetch_one_cached(client, base_url, vuln, package, fetch).await? {
+            CachedFetch::Hit(advisory) => advisories.push(advisory),
+            CachedFetch::OfflineMiss => warnings.push(format!(
+                "offline: {} is not in the cache for {}@{}",
+                vuln.id, package.name, package.version
+            )),
+        }
+    }
+    Ok(advisories)
+}
+
+enum CachedFetch {
+    Hit(Advisory),
+    OfflineMiss,
+}
+
+async fn fetch_one_cached<C: HttpClient>(
+    client: &C,
+    base_url: &str,
+    vuln: &OsvVulnRef,
+    package: &Package,
+    fetch: &AdvisoryCache<'_>,
+) -> Result<CachedFetch, CoreError> {
+    let url = join_url(base_url, &format!("/v1/vulns/{}", vuln.id));
+    if let Some(cache) = fetch.cache {
+        if let Some(json) = cache.get_osv(&vuln.id, &vuln.modified, fetch.now, fetch.ttl)? {
+            return Ok(CachedFetch::Hit(advisory_from_json(&url, &json, package)?));
+        }
+    }
+    if fetch.offline {
+        return Ok(CachedFetch::OfflineMiss);
+    }
+    let response = client.get(&url).await?;
+    if !(200..300).contains(&response.status) {
+        return Err(CoreError::Http {
+            url,
+            message: format!("status {}", response.status),
+        });
+    }
+    if let Some(cache) = fetch.cache {
+        cache.put_osv(&vuln.id, &vuln.modified, &response.body, fetch.now)?;
+    }
+    Ok(CachedFetch::Hit(advisory_from_json(
+        &url,
+        &response.body,
+        package,
+    )?))
+}
+
+/// Remember a `querybatch` result. `modified` is stored with each id.
+pub fn cache_query(
+    cache: &Cache,
+    package: &Package,
+    vulns: &[OsvVulnRef],
+    now: i64,
+) -> Result<(), CoreError> {
+    let refs = vulns
+        .iter()
+        .map(|vuln| CachedOsvRef {
+            id: vuln.id.clone(),
+            modified: vuln.modified.clone(),
+        })
+        .collect::<Vec<_>>();
+    cache.put_osv_query(
+        package.ecosystem.as_osv_str(),
+        &package.name,
+        &package.version,
+        &refs,
+        now,
+    )
+}
+
+/// Load a cached `querybatch` result. `None` means a miss or an expired row.
+pub fn cached_query(
+    cache: &Cache,
+    package: &Package,
+    now: i64,
+    ttl: std::time::Duration,
+) -> Result<Option<Vec<OsvVulnRef>>, CoreError> {
+    let Some(refs) = cache.get_osv_query(
+        package.ecosystem.as_osv_str(),
+        &package.name,
+        &package.version,
+        now,
+        ttl,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(
+        refs.into_iter()
+            .map(|reference| OsvVulnRef {
+                id: reference.id,
+                modified: reference.modified,
+            })
+            .collect(),
+    ))
 }
 
 /// GET one advisory and compute fixed versions for `package`.

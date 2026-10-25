@@ -8,14 +8,18 @@
 //! before the OSV query. `--ecosystem` and `--no-dev` drop packages first.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::cache::{Cache, DEFAULT_TTL};
 use crate::discovery::discover;
 use crate::error::CoreError;
 use crate::http::HttpClient;
 use crate::lockfile::parser_for;
 use crate::model::{Ecosystem, Finding, Package, Report, Tier};
-use crate::osv::{fetch_advisories, query_batch};
+use crate::osv::{
+    cache_query, cached_query, fetch_advisories_cached, query_batch, AdvisoryCache, OsvVulnRef,
+};
 
 /// Filters applied after parsing and before the OSV query.
 #[derive(Debug, Clone)]
@@ -26,6 +30,17 @@ pub struct ScanOptions {
     pub ecosystems: Option<Vec<Ecosystem>>,
     /// Drop packages the parser marked `dev`.
     pub no_dev: bool,
+    /// Do not call the network. Queries and advisory bodies come from the cache.
+    pub offline: bool,
+    /// Do not read or write the cache.
+    ///
+    /// [`scan_path`] sets this so unit tests stay hermetic. The CLI turns it off
+    /// unless the user passes `--no-cache`.
+    pub no_cache: bool,
+    /// SQLite file. Ignored when `no_cache` is set.
+    pub cache_db: Option<PathBuf>,
+    /// Unix seconds for TTL checks. `None` uses the current time.
+    pub now: Option<i64>,
 }
 
 impl Default for ScanOptions {
@@ -34,6 +49,10 @@ impl Default for ScanOptions {
             keep_going: true,
             ecosystems: None,
             no_dev: false,
+            offline: false,
+            no_cache: true,
+            cache_db: None,
+            now: None,
         }
     }
 }
@@ -121,14 +140,37 @@ where
     packages.retain(|package| package_wanted(package, options));
     let packages = dedupe_packages(packages);
 
-    let matched = query_batch(client, base_url, &packages).await?;
+    let now = options.now.unwrap_or_else(unix_now);
+    let cache = open_scan_cache(options)?;
+    let matched = match_packages(
+        client,
+        base_url,
+        &packages,
+        options,
+        cache.as_ref(),
+        now,
+        &mut warnings,
+    )
+    .await?;
     let mut findings = Vec::new();
     for (package, vulns) in packages.iter().zip(matched) {
         if vulns.is_empty() {
             continue;
         }
-        let ids: Vec<String> = vulns.into_iter().map(|vuln| vuln.id).collect();
-        let advisories = fetch_advisories(client, base_url, &ids, package).await?;
+        let advisories = fetch_advisories_cached(
+            client,
+            base_url,
+            &vulns,
+            package,
+            &AdvisoryCache {
+                cache: cache.as_ref(),
+                offline: options.offline,
+                now,
+                ttl: DEFAULT_TTL,
+            },
+            &mut warnings,
+        )
+        .await?;
         for advisory in advisories {
             findings.push(Finding {
                 advisory,
@@ -157,6 +199,66 @@ where
         findings,
         warnings,
     })
+}
+
+fn open_scan_cache(options: &ScanOptions) -> Result<Option<Cache>, CoreError> {
+    if options.no_cache {
+        return Ok(None);
+    }
+    let Some(path) = &options.cache_db else {
+        return Ok(None);
+    };
+    Ok(Some(Cache::open(path)?))
+}
+
+async fn match_packages<C>(
+    client: &C,
+    base_url: &str,
+    packages: &[Package],
+    options: &ScanOptions,
+    cache: Option<&Cache>,
+    now: i64,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<Vec<OsvVulnRef>>, CoreError>
+where
+    C: HttpClient + Clone + 'static,
+{
+    if options.offline {
+        let mut matched = Vec::with_capacity(packages.len());
+        for package in packages {
+            let refs = match cache {
+                Some(cache) => cached_query(cache, package, now, DEFAULT_TTL)?,
+                None => None,
+            };
+            match refs {
+                Some(refs) => matched.push(refs),
+                None => {
+                    warnings.push(format!(
+                        "offline: no cached OSV query for {} {}@{}",
+                        package.ecosystem.as_osv_str(),
+                        package.name,
+                        package.version
+                    ));
+                    matched.push(Vec::new());
+                }
+            }
+        }
+        return Ok(matched);
+    }
+    let matched = query_batch(client, base_url, packages).await?;
+    if let Some(cache) = cache {
+        for (package, vulns) in packages.iter().zip(&matched) {
+            cache_query(cache, package, vulns, now)?;
+        }
+    }
+    Ok(matched)
+}
+
+fn unix_now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| i64::try_from(duration.as_secs()).unwrap_or(i64::MAX))
+        .unwrap_or(0)
 }
 
 fn package_wanted(package: &Package, options: &ScanOptions) -> bool {
@@ -499,5 +601,92 @@ mod tests {
             .expect("query");
         assert!(post.body.contains("requests"), "{}", post.body);
         assert!(!post.body.contains("lodash"), "{}", post.body);
+    }
+
+    fn lodash_options(dir: &Path, now: i64) -> ScanOptions {
+        ScanOptions {
+            no_cache: false,
+            cache_db: Some(dir.join("cache.db")),
+            now: Some(now),
+            ..ScanOptions::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn second_scan_does_not_fetch_advisory_bodies() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+        )
+        .expect("lock");
+        let options = lodash_options(dir.path(), 1_700_000_000);
+        let first = fake_osv();
+        let report = scan_with(&first, "https://api.osv.dev", dir.path(), &options)
+            .await
+            .expect("first");
+        assert_eq!(report.findings.len(), 1);
+        assert!(
+            first
+                .recorded()
+                .iter()
+                .any(|request| request.url.contains("/v1/vulns/")),
+            "first scan should fetch the advisory"
+        );
+
+        let second = fake_osv();
+        let report = scan_with(&second, "https://api.osv.dev", dir.path(), &options)
+            .await
+            .expect("second");
+        assert_eq!(report.findings.len(), 1);
+        assert_eq!(report.findings[0].advisory.id, "GHSA-35jh-r3h4-6jhm");
+        assert!(
+            second
+                .recorded()
+                .iter()
+                .all(|request| !request.url.contains("/v1/vulns/")),
+            "second scan fetched {:?}",
+            second
+                .recorded()
+                .iter()
+                .map(|request| request.url.clone())
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            second
+                .recorded()
+                .iter()
+                .any(|request| request.url.contains("/v1/querybatch")),
+            "querybatch is not cached away from the network in online mode"
+        );
+    }
+
+    #[tokio::test]
+    async fn offline_scan_does_not_call_http() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+        )
+        .expect("lock");
+        let mut options = lodash_options(dir.path(), 1_700_000_000);
+        options.offline = true;
+        let report = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &options,
+        )
+        .await
+        .expect("offline");
+        assert!(report.findings.is_empty());
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("offline:")),
+            "{:?}",
+            report.warnings
+        );
     }
 }
