@@ -311,7 +311,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: nama tertulis di PRD/README. Keputusan W6-T1: paket `patchsense` tanpa scope npm, owner `Widyasa`. `rg 'Widyasa'` tidak dikosongkan karena itu owner yang dikunci, bukan placeholder.
   - Dep: –  (boleh diminta sejak awal)
 
-- [ ] **W6-T2 cargo-dist**
+- [x] **W6-T2 cargo-dist**
   - Deskripsi: `dist init` dengan target PRD §15, installer shell, powershell, npm, homebrew; workflow `release.yml` dihasilkan tool. Uji dengan `dist plan` dan `dist build` lokal.
   - File: `Cargo.toml` (`[workspace.metadata.dist]` atau `dist-workspace.toml`), `.github/workflows/release.yml`
   - Selesai bila: `dist plan` sukses; tag pra-rilis (mis. `v0.1.0-rc.1`) di repo menghasilkan artifact untuk semua target (dijalankan Widya bila butuh izin push tag).
