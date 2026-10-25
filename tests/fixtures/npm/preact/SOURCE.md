@@ -15,4 +15,4 @@ Trim: the original `packages` map has 1226 entries. This fixture keeps the root 
 - `node_modules/@actions/core/node_modules/uuid`
 - `node_modules/@actions/github`
 
-Root `devDependencies` / `dependencies` were reduced to the names of the retained top-level packages so the direct-dependency set still matches those entries. Other root metadata (`name`, `version`, `license`, `funding`) is unchanged.
+Root `devDependencies` was filtered to keys that were already in the original map and match a retained top-level package (`lodash`, `@actions/github`). `@actions/core` is kept as a hoisted transitive package, so it is not a direct dependency. Other root metadata (`name`, `version`, `license`, `funding`) is unchanged.
