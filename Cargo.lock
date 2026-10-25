@@ -700,6 +700,7 @@ dependencies = [
  "globset",
  "insta",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",
