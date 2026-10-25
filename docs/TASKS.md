@@ -49,7 +49,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata (satu v3, satu v1 atau v2), snapshot `insta` daftar paket, tes lockfile rusak memberi `CoreError` dengan nama file.
   - Dep: W1-T4
 
-- [ ] **W1-T7 Parser `requirements.txt`**
+- [x] **W1-T7 Parser `requirements.txt`**
   - Deskripsi: hanya `name==version` (dengan extras dan marker diabaikan); lewati komentar, `-r`, `-e`, URL, dan baris tanpa pin dengan warning berisi nomor baris.
   - File: `core/lockfile/requirements.rs`, `tests/fixtures/pypi/`
   - Selesai bila: ≥2 fixture nyata, snapshot paket dan warning, nama dinormalisasi PEP 503.
