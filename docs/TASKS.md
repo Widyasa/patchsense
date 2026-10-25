@@ -167,7 +167,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: tes lookup, TTL, dan field `knownRansomwareCampaignUse`.
   - Dep: W3-T1, W1-T9
 
-- [ ] **W3-T5 CVSS**
+- [x] **W3-T5 CVSS**
   - Deskripsi: hitung base score dari vector CVSS v3.x (crate `cvss` atau implementasi sendiri dengan tes resmi), CVSS v4 bila didukung, fallback `database_specific.severity` (PRD F3 AC3.3).
   - File: `core/enrich/cvss.rs`
   - Selesai bila: unit test untuk ≥5 vector dengan skor yang dibandingkan dengan kalkulator resmi FIRST, plus fallback dan `None`.
