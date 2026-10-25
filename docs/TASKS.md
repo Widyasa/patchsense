@@ -123,7 +123,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
   - Selesai bila: ≥2 fixture nyata (satu memakai properties), snapshot paket dan warning lolos.
   - Dep: W1-T4
 
-- [ ] **W2-T7 Parser `Cargo.lock`**
+- [x] **W2-T7 Parser `Cargo.lock`**
   - Deskripsi: `[[package]]` dengan `source` dari registry crates.io; lewati path/git. `direct` dari `Cargo.toml` (termasuk workspace members) bila ada.
   - File: `core/lockfile/cargo.rs`, `tests/fixtures/cargo/`
   - Selesai bila: ≥2 fixture nyata (salah satunya boleh `Cargo.lock` repo ini sendiri), snapshot lolos.
