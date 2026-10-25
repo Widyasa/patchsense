@@ -1,0 +1,8 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 10,
+  "result": "Upgrade lodash to 4.17.21.",
+  "session_id": "00000000-0000-0000-0000-000000000000"
+}

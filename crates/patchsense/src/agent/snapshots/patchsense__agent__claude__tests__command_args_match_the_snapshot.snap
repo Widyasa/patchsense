@@ -1,0 +1,11 @@
+---
+source: crates/patchsense/src/agent/claude.rs
+expression: "argv(&command, dir.path())"
+---
+claude
+-p
+--output-format
+json
+explain lodash
+
+cwd=<dir>
