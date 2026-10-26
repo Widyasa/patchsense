@@ -16,7 +16,7 @@ use clap::Parser;
 use rmcp::ServiceExt;
 
 use patchsense_core::cache::{self, resolve_cache_db, Cache, CacheLocation};
-use patchsense_core::config::{self, ExplainAgent, ExplainLang, FailOn, FlagInput, LoadRequest};
+use patchsense_core::config::{self, ExplainAgent, FailOn, FlagInput, LoadRequest};
 use patchsense_core::enrich::epss::epss_base_url;
 use patchsense_core::enrich::kev::kev_feed_url;
 use patchsense_core::http::{osv_base_url, ReqwestClient};
@@ -57,12 +57,6 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 Some(value) => Some(ExplainAgent::parse(value)?),
                 None => None,
             };
-            let lang = match args.lang.as_deref() {
-                Some("id") => Some(ExplainLang::Id),
-                Some("en") => Some(ExplainLang::En),
-                Some(other) => anyhow::bail!("unknown lang `{other}`"),
-                None => None,
-            };
             let config_env = std::env::var_os("PATCHSENSE_CONFIG").map(PathBuf::from);
             let mut loaded = config::load_config(&LoadRequest {
                 start: &path,
@@ -81,9 +75,6 @@ async fn try_main() -> anyhow::Result<ExitCode> {
             })?;
             if let Some(top) = args.explain_top {
                 loaded.config.explain.top = top;
-            }
-            if let Some(lang) = lang {
-                loaded.config.explain.lang = lang;
             }
             for warning in &loaded.warnings {
                 eprintln!("warning: {warning}");
@@ -126,16 +117,11 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 } else {
                     path.parent().unwrap_or(Path::new(".")).to_path_buf()
                 };
-                let lang = match loaded.config.explain.lang {
-                    ExplainLang::Id => agent::PromptLang::Id,
-                    ExplainLang::En => agent::PromptLang::En,
-                };
                 agent::apply_explain(
                     &mut report,
                     &agent::ExplainRequest {
                         agent: loaded.config.explain.agent,
                         top: usize::try_from(loaded.config.explain.top).unwrap_or(usize::MAX),
-                        lang,
                         timeout: std::time::Duration::from_secs(loaded.config.explain.timeout_secs),
                         workdir: &workdir,
                         path: None,

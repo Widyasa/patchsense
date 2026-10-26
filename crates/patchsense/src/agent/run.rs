@@ -10,10 +10,10 @@ use std::time::{Duration, Instant};
 use patchsense_core::config::ExplainAgent;
 use patchsense_core::model::{Explanation, Report};
 
-use super::{find_binary, AgentAdapter, ClaudeAdapter, CodexAdapter, CursorAdapter, PromptLang};
+use super::{find_binary, AgentAdapter, ClaudeAdapter, CodexAdapter, CursorAdapter};
 
 /// Label required next to every AI explanation.
-pub const DISCLAIMER: &str = "Penjelasan AI, bisa keliru";
+pub const DISCLAIMER: &str = "AI explanation, may be wrong";
 
 /// What `scan --explain` asked the runner to do.
 pub struct ExplainRequest<'a> {
@@ -21,8 +21,6 @@ pub struct ExplainRequest<'a> {
     pub agent: ExplainAgent,
     /// Findings included in the prompt. They receive the explanation.
     pub top: usize,
-    /// Instruction language.
-    pub lang: PromptLang,
     /// Kill the process after this long.
     pub timeout: Duration,
     /// Agent working directory. The scan root.
@@ -51,7 +49,7 @@ pub fn apply_explain(report: &mut Report, request: &ExplainRequest<'_>) {
     };
     let name = adapter.name().to_string();
     report.context.explain_agent = Some(name.clone());
-    let prompt = super::build_prompt(report, request.top, request.lang);
+    let prompt = super::build_prompt(report, request.top);
     let scratch = match scratch_dir() {
         Ok(dir) => dir,
         Err(err) => {

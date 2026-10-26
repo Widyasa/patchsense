@@ -84,7 +84,7 @@ expression: value
       "source_file": "package-lock.json",
       "summary": "Command Injection in lodash",
       "tier": "defer",
-      "tier_label": "Bisa ditunda"
+      "tier_label": "Defer"
     }
   ],
   "generated_at": "<redacted>",

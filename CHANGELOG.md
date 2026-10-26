@@ -6,6 +6,10 @@ All notable changes to PatchSense are documented here. The format follows [Keep 
 
 First release. The date is filled in when the `v0.1.0` tag is created. Tagging and publishing are done by Widya; see [`docs/release-checklist.md`](docs/release-checklist.md).
 
+### Changed
+
+- User-facing text is English only. Tier labels are Critical, Review, and Defer. The `--lang` flag is removed. An existing `explain.lang` key is ignored and warns.
+
 ### Added
 
 - Lockfile parsers for npm, pnpm, Yarn, Poetry, `requirements.txt`, Composer, Go, Maven, and Cargo.

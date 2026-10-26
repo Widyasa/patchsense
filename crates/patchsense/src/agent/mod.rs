@@ -25,7 +25,7 @@ use std::time::Duration;
 pub use claude::ClaudeAdapter;
 pub use codex::CodexAdapter;
 pub use cursor::CursorAdapter;
-pub use prompt::{build_prompt, PromptLang};
+pub use prompt::build_prompt;
 
 /// Default wait before the runner kills the agent process.
 #[cfg_attr(not(test), allow(dead_code))]

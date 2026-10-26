@@ -43,12 +43,11 @@ top = 20
 [explain]
 agent = "auto"
 top = 10
-lang = "id"
 timeout_secs = 120
 
 [[ignore]]
 id = "GHSA-xxxx-xxxx-xxxx"
-reason = "Hanya dipakai di script build, tidak terekspos"
+reason = "Used only in a build script, not exposed"
 expires = "2027-01-31"
 "#;
 
@@ -72,17 +71,17 @@ pub const END_MARKER: &str = "<!-- patchsense:end -->";
 /// Instruction block from PRD §12.1, including both markers.
 pub const INSTRUCTION_BLOCK: &str = "\
 <!-- patchsense:start -->
-## Keamanan dependency (PatchSense)
-- Sebelum menambah atau meng-upgrade dependency, jalankan `patchsense scan . --format json` atau panggil tool MCP `scan_project`.
-- Prioritaskan temuan bertingkat `critical` (Kritis), lalu `review`. Gunakan `get_fix_plan` untuk versi perbaikan.
-- Selalu sertakan link advisory dari hasil scan. Jangan mengarang versi perbaikan.
+## Dependency security (PatchSense)
+- Before adding or upgrading a dependency, run `patchsense scan . --format json` or call the MCP tool `scan_project`.
+- Prioritize `critical` findings, then `review`. Use `get_fix_plan` for the fixed version.
+- Always include advisory links from the scan. Do not invent fixed versions.
 <!-- patchsense:end -->
 ";
 
 /// Frontmatter for a new `.cursor/rules/patchsense.mdc` (checked 25 Oct 2026).
 const CURSOR_FRONTMATTER: &str = "\
 ---
-description: \"Keamanan dependency PatchSense sebelum menambah atau meng-upgrade paket\"
+description: \"PatchSense dependency security before adding or upgrading a package\"
 alwaysApply: false
 ---
 ";

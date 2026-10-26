@@ -220,7 +220,7 @@ mod tests {
         .expect("parse");
         let markdown = render_markdown(&report, 20);
         assert!(markdown.contains(MARKER));
-        assert!(markdown.contains("Tidak ada kerentanan"));
+        assert!(markdown.contains("No vulnerabilities"));
     }
 
     #[test]

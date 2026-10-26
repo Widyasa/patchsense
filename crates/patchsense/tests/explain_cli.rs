@@ -124,7 +124,7 @@ async fn explain_inserts_the_fake_agent_text_and_exits_0() {
     scan(&server, dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("Penjelasan AI, bisa keliru"))
+        .stdout(predicate::str::contains("AI explanation, may be wrong"))
         .stdout(predicate::str::contains("Upgrade lodash to 4.17.21."))
         .stdout(predicate::str::contains("\"status\": \"ok\""));
 }

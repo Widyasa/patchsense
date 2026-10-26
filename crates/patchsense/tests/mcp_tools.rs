@@ -217,7 +217,7 @@ async fn tools_call_scan_finding_fix_plan_and_explain() {
     );
     assert!(!explain.contains("\"isError\":true"), "{explain}");
     assert!(explain.contains("GHSA-35jh-r3h4-6jhm"), "{explain}");
-    assert!(explain.contains("skor"), "{explain}");
+    assert!(explain.contains("score"), "{explain}");
     assert!(explain.contains("CVSS"), "{explain}");
-    assert!(explain.contains("ambang kritis"), "{explain}");
+    assert!(explain.contains("critical threshold"), "{explain}");
 }

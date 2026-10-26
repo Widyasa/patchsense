@@ -164,10 +164,10 @@ pub struct EpssSection {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Thresholds {
-    /// Score at or above this value is Kritis.
+    /// Score at or above this value is Critical.
     #[serde(default = "default_critical", deserialize_with = "de_f64")]
     pub critical: f64,
-    /// Score at or above this value is Perlu dicek.
+    /// Score at or above this value is Review.
     #[serde(default = "default_review", deserialize_with = "de_f64")]
     pub review: f64,
 }
@@ -215,9 +215,11 @@ pub struct ExplainSection {
     /// Findings sent to the agent.
     #[serde(default = "default_explain_top")]
     pub top: u32,
-    /// Prompt language.
+    /// Deprecated. Ignored. Kept so an older `patchsense.toml` still parses.
+    ///
+    /// Output is English. A present value produces a warning from [`load_config`].
     #[serde(default)]
-    pub lang: ExplainLang,
+    pub lang: Option<String>,
     /// Agent timeout.
     #[serde(default = "default_timeout")]
     pub timeout_secs: u64,
@@ -276,17 +278,6 @@ pub enum ExplainAgent {
     Claude,
     /// Cursor agent CLI.
     Cursor,
-}
-
-/// Prompt language.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ExplainLang {
-    /// Indonesian.
-    #[default]
-    Id,
-    /// English.
-    En,
 }
 
 impl Default for Config {
@@ -373,7 +364,7 @@ impl Default for ExplainSection {
         Self {
             agent: ExplainAgent::Auto,
             top: 10,
-            lang: ExplainLang::Id,
+            lang: None,
             timeout_secs: 120,
         }
     }
@@ -451,8 +442,11 @@ pub fn env_from_process() -> Result<EnvInput, CoreError> {
 pub fn load_config(request: &LoadRequest<'_>) -> Result<LoadedConfig, CoreError> {
     let (path, mut config) = read_config(request)?;
     apply_precedence(&mut config, &request.env, &request.flags);
-    let (ignore, warnings) = partition_ignores(&config.ignore, request.today)?;
+    let (ignore, mut warnings) = partition_ignores(&config.ignore, request.today)?;
     config.ignore = ignore;
+    if config.explain.lang.is_some() {
+        warnings.push("explain.lang is ignored; PatchSense output is English only".to_string());
+    }
     Ok(LoadedConfig {
         config,
         path,
@@ -641,7 +635,7 @@ pub fn partition_ignores(
         match &rule.expires {
             Some(expires) if expires.as_str() < today => {
                 warnings.push(format!(
-                    "ignore {} kedaluwarsa pada {expires} dan tidak dipakai",
+                    "ignore {} expired on {expires} and was not applied",
                     rule.id
                 ));
             }
@@ -896,7 +890,7 @@ expires = "2027-01-31"
         assert_eq!(config.output.top, 20);
         assert_eq!(config.explain.agent, ExplainAgent::Auto);
         assert_eq!(config.explain.top, 10);
-        assert_eq!(config.explain.lang, ExplainLang::Id);
+        assert_eq!(config.explain.lang.as_deref(), Some("id"));
         assert_eq!(config.explain.timeout_secs, 120);
         assert_eq!(config.ignore.len(), 1);
         assert_eq!(config.ignore[0].id, "GHSA-xxxx-xxxx-xxxx");
@@ -905,6 +899,37 @@ expires = "2027-01-31"
             "Hanya dipakai di script build, tidak terekspos"
         );
         assert_eq!(config.ignore[0].expires.as_deref(), Some("2027-01-31"));
+    }
+
+    #[test]
+    fn leftover_explain_lang_warns_and_does_not_change_defaults() {
+        let dir = std::env::temp_dir().join(format!(
+            "patchsense-lang-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("patchsense.toml");
+        std::fs::write(&path, "schema_version = 1\n\n[explain]\nlang = \"id\"\n").expect("write");
+        let loaded = load_config(&LoadRequest {
+            start: &dir,
+            config_flag: Some(&path),
+            config_env: None,
+            today: "2026-10-26",
+            env: EnvInput::default(),
+            flags: FlagInput::default(),
+        })
+        .expect("load");
+        assert!(loaded
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("explain.lang is ignored")));
+        assert_eq!(loaded.config.explain.agent, ExplainAgent::Auto);
+        assert_eq!(loaded.config.explain.lang.as_deref(), Some("id"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -996,7 +1021,7 @@ expires = "2027-01-31"
         let (active, warnings) = partition_ignores(&ignore, "2026-10-25").expect("dates");
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("GHSA-old"));
-        assert!(warnings[0].contains("kedaluwarsa"));
+        assert!(warnings[0].contains("expired"));
         assert_eq!(
             active
                 .iter()

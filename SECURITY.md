@@ -4,7 +4,7 @@
 
 PatchSense reads lockfiles and talks to the public OSV, EPSS, and CISA KEV endpoints. It does not upload your source. Cache files stay on the machine that ran the scan (`patchsense cache info` prints the path).
 
-`scan --explain` sends a prompt built from finding data to a coding agent already installed on that machine. The prompt is not sent to a PatchSense server. Treat the agent's text as untrusted: the product labels it `Penjelasan AI, bisa keliru`.
+`scan --explain` sends a prompt built from finding data to a coding agent already installed on that machine. The prompt is not sent to a PatchSense server. Treat the agent's text as untrusted: the product labels it `AI explanation, may be wrong`.
 
 ## Reporting a vulnerability in PatchSense
 

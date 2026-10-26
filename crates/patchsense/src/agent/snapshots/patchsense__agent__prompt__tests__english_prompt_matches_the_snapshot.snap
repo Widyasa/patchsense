@@ -33,7 +33,7 @@ Data (JSON):
     ],
     "score": 88,
     "summary": "Command Injection in lodash",
-    "tier": "Kritis",
+    "tier": "Critical",
     "version": "4.17.15"
   }
 ]

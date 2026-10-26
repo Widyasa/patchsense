@@ -12,6 +12,8 @@ PatchSense adalah CLI open source berbasis Rust untuk triage CVE. PatchSense mem
 
 Hasilnya tampil sebagai tabel terminal, JSON, SARIF, laporan GitLab Dependency Scanning, dan komentar di PR/MR. Penjelasan AI bersifat opsional dan **menumpang AI coding agent milik user** (Cursor, Claude Code, Codex) lewat server MCP atau CLI agent yang sudah terpasang. PatchSense sendiri tidak pernah meminta atau menyimpan API key model.
 
+Output language is English only. Tier labels are Critical, Review, and Defer. There is no `--lang` flag. An existing `explain.lang` key is ignored and produces a warning.
+
 ### 1.1 Satu kalimat
 "`patchsense scan .` memberi tahu dalam hitungan detik CVE mana yang Kritis, mana yang Perlu dicek, dan mana yang Bisa ditunda, lengkap dengan alasan dan versi perbaikannya."
 
