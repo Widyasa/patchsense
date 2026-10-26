@@ -22,7 +22,7 @@ expression: value
             }
           ],
           "message": {
-            "text": "lodash@4.17.15: Command Injection in lodash (skor 37)"
+            "text": "lodash@4.17.15: Command Injection in lodash (score 37)"
           },
           "partialFingerprints": {
             "patchsense/v1": "npm/package-lock.json/lodash@4.17.15/GHSA-35jh-r3h4-6jhm"
@@ -44,7 +44,7 @@ expression: value
             }
           ],
           "message": {
-            "text": "lodash@4.17.15: Command Injection in lodash (skor 80)"
+            "text": "lodash@4.17.15: Command Injection in lodash (score 80)"
           },
           "partialFingerprints": {
             "patchsense/v1": "npm/package-lock.json/lodash@4.17.15/GHSA-aaaa-bbbb-cccc"

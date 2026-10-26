@@ -50,7 +50,7 @@ fn dry_run_prints_markdown_without_a_token() {
         .assert()
         .success()
         .stdout(predicate::str::contains("<!-- patchsense-report -->"))
-        .stdout(predicate::str::contains("Tidak ada kerentanan"));
+        .stdout(predicate::str::contains("No vulnerabilities"));
 }
 
 #[tokio::test]

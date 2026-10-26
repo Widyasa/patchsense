@@ -85,9 +85,7 @@ pub fn score_findings(
     let total = weight_total(score);
     let mut warnings = Vec::new();
     if (total - 100.0).abs() > 1e-9 {
-        warnings.push(format!(
-            "bobot skor berjumlah {total}, dinormalisasi ke 0-100"
-        ));
+        warnings.push(format!("score weights total {total}, normalized to 0-100"));
     }
     let mut ranked: Vec<(usize, ScoredFinding)> = requests
         .iter()
@@ -311,7 +309,7 @@ mod tests {
         let (findings, warnings) = score_findings(&[request], &score);
         assert_eq!(findings[0].score, 100);
         assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("dinormalisasi"), "{}", warnings[0]);
+        assert!(warnings[0].contains("normalized"), "{}", warnings[0]);
     }
 
     #[test]

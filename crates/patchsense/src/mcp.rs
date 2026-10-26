@@ -133,7 +133,7 @@ impl McpServer {
             "epss": finding.signals.epss,
             "kev": finding.signals.kev,
             "score": finding.score,
-            "tier": finding.tier.label_id(),
+            "tier": finding.tier.label(),
             "score_breakdown": finding.signals.breakdown,
             "package": {
                 "ecosystem": finding.package.ecosystem.as_osv_str(),
@@ -286,11 +286,11 @@ pub(crate) fn present_scan(report: &Report, min_score: u32) -> String {
     let mut header = String::new();
     if truncated {
         header.push_str(&format!(
-            "Menampilkan {SCAN_PROJECT_LIMIT} dari {matched} temuan.\n\n"
+            "Showing {SCAN_PROJECT_LIMIT} of {matched} findings.\n\n"
         ));
     }
     if min_score > 0 {
-        header.push_str(&format!("Filter skor minimum: {min_score}.\n\n"));
+        header.push_str(&format!("Minimum score filter: {min_score}.\n\n"));
     }
     let markdown = render_markdown(&shown, SCAN_PROJECT_LIMIT);
     let json = render_json(&shown).unwrap_or_else(|err| format!("error: {err}"));
@@ -324,9 +324,9 @@ fn finding_matches(finding: &Finding, id: &str) -> bool {
 
 fn parse_tier(value: &str) -> Result<Tier, String> {
     match value.to_ascii_lowercase().as_str() {
-        "critical" | "kritis" => Ok(Tier::Critical),
-        "review" | "perlu dicek" => Ok(Tier::Review),
-        "defer" | "bisa ditunda" => Ok(Tier::Defer),
+        "critical" => Ok(Tier::Critical),
+        "review" => Ok(Tier::Review),
+        "defer" => Ok(Tier::Defer),
         other => Err(format!("unknown tier: {other}")),
     }
 }
@@ -374,7 +374,7 @@ pub(crate) fn fix_plan(report: &Report, tier: Option<Tier>) -> Vec<FixPlanRow> {
             let recommended = minimum_covering_fix(&fixed);
             let manifest_hint = match &recommended {
                 Some(version) => manifest_hint(&ecosystem, &name, version),
-                None => "tidak ada versi fix yang menutup semua advisory".to_string(),
+                None => "no fixed version covers every advisory".to_string(),
             };
             FixPlanRow {
                 ecosystem,
@@ -408,33 +408,33 @@ pub(crate) fn explain_finding(finding: &Finding) -> String {
             "{} {}@{}",
             finding.advisory.id, finding.package.name, finding.package.version
         ),
-        format!("skor {} ({})", finding.score, finding.tier.label_id()),
+        format!("score {} ({})", finding.score, finding.tier.label()),
         format!(
-            "ambang kritis {}, perlu dicek {}",
+            "critical threshold {}, review threshold {}",
             score.thresholds.critical, score.thresholds.review
         ),
     ];
     if let Some(item) = &finding.signals.breakdown {
-        lines.push(format!("KEV: {} (bobot {})", item.kev, score.weights.kev));
+        lines.push(format!("KEV: {} (weight {})", item.kev, score.weights.kev));
         lines.push(format!(
-            "EPSS: {} (bobot {})",
+            "EPSS: {} (weight {})",
             item.epss, score.weights.epss
         ));
         lines.push(format!(
-            "CVSS: {} (bobot {})",
+            "CVSS: {} (weight {})",
             item.cvss, score.weights.cvss
         ));
         lines.push(format!(
-            "direct: {} (bobot {})",
+            "direct: {} (weight {})",
             item.direct, score.weights.direct
         ));
         lines.push(format!(
-            "fix: {} (bobot {})",
+            "fix: {} (weight {})",
             item.fix_available, score.weights.fix_available
         ));
-        lines.push(format!("total bobot {}", item.total_weight));
+        lines.push(format!("total weight {}", item.total_weight));
     } else {
-        lines.push("skor belum dihitung".to_string());
+        lines.push("score has not been calculated".to_string());
     }
     lines.join("\n")
 }
@@ -504,7 +504,7 @@ mod tests {
     fn scan_project_output_stops_at_fifty_findings() {
         let findings: Vec<_> = (0..51).map(finding).collect();
         let text = present_scan(&report(findings), 0);
-        assert!(text.contains("Menampilkan 50 dari 51 temuan."));
+        assert!(text.contains("Showing 50 of 51 findings."));
         assert!(text.contains("GHSA-cap-0000"));
         assert!(text.contains("GHSA-cap-0049"));
         assert!(!text.contains("GHSA-cap-0050"));
@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(rows[0].recommended, None);
         assert_eq!(
             rows[0].manifest_hint,
-            "tidak ada versi fix yang menutup semua advisory"
+            "no fixed version covers every advisory"
         );
     }
 
@@ -547,9 +547,10 @@ mod tests {
     fn explain_lists_weights_and_thresholds() {
         let text = explain_finding(&finding(3));
         assert!(text.contains("GHSA-cap-0003 left-pad@1.0.0"));
-        assert!(text.contains("skor 97"));
-        assert!(text.contains("ambang kritis 70"));
-        assert!(text.contains("CVSS: 10 (bobot 20)"));
-        assert!(text.contains("total bobot 100"));
+        assert!(text.contains("score 97 (Defer)"));
+        assert!(text.contains("critical threshold 70"));
+        assert!(text.contains("review threshold 40"));
+        assert!(text.contains("CVSS: 10 (weight 20)"));
+        assert!(text.contains("total weight 100"));
     }
 }

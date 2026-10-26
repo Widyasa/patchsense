@@ -173,10 +173,6 @@ pub struct ScanArgs {
     /// How many findings to send to the agent. Defaults to the config value, usually 10.
     #[arg(long, value_name = "N")]
     pub explain_top: Option<u32>,
-
-    /// Explanation language: `id` or `en`.
-    #[arg(long, value_name = "LANG")]
-    pub lang: Option<String>,
 }
 
 /// One scan report format.

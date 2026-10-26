@@ -4,7 +4,7 @@ File ini untuk Cursor, Codex, Claude Code, Kodi, dan agent lain yang bekerja di 
 
 ## 1. Konteks proyek
 
-PatchSense adalah CLI Rust open source untuk triage CVE: membaca lockfile (npm, pnpm, yarn, PyPI, Composer, Go, Maven, Cargo), mencocokkan dengan OSV, memperkaya dengan EPSS, CISA KEV, dan CVSS, lalu memberi skor prioritas 0–100 (Kritis ≥ 70, Perlu dicek 40–69, Bisa ditunda < 40). Output: tabel, JSON, SARIF, markdown, laporan GitLab, komentar PR/MR. AI opsional lewat agent milik user (`patchsense mcp`, `scan --explain`, `init --agent`), tanpa API key milik PatchSense. Lisensi `MIT OR Apache-2.0`.
+PatchSense adalah CLI Rust open source untuk triage CVE: membaca lockfile (npm, pnpm, yarn, PyPI, Composer, Go, Maven, Cargo), mencocokkan dengan OSV, memperkaya dengan EPSS, CISA KEV, dan CVSS, lalu memberi skor prioritas 0–100 (Critical ≥ 70, Review 40–69, Defer < 40). Output: tabel, JSON, SARIF, markdown, laporan GitLab, komentar PR/MR. Teks output bahasa Inggris. AI opsional lewat agent milik user (`patchsense mcp`, `scan --explain`, `init --agent`), tanpa API key milik PatchSense. Lisensi `MIT OR Apache-2.0`.
 
 - Spesifikasi lengkap: `docs/PRD.md`. Daftar tugas: `docs/TASKS.md`.
 - Keputusan di PRD §1.2 **sudah dikunci**. Jangan mengubahnya (misalnya menambah web app, mengganti bahasa, memanggil API model langsung, atau menambah ekosistem yang ditunda). Bila menurutmu ada keputusan yang perlu diubah, tulis usulan di deskripsi PR dan berhenti.
@@ -34,7 +34,7 @@ Aturan lapisan: `patchsense-core` tidak boleh bergantung pada `clap`, `comfy-tab
 - Async: `tokio` hanya untuk I/O jaringan dan orkestrasi. Parser lockfile adalah fungsi sinkron murni (`&str` → struct).
 - Serde: `#[serde(deny_unknown_fields)]` untuk config; untuk respon API **jangan** pakai `deny_unknown_fields` (API bisa menambah field).
 - Output deterministik: urutkan koleksi sebelum ditampilkan atau di-serialize (`BTreeMap` atau sort eksplisit), supaya snapshot stabil.
-- Nama identifier, perintah, flag, dan field JSON dalam Bahasa Inggris. Teks yang tampil ke user (label tier, pesan) boleh Bahasa Indonesia sesuai PRD; label tier wajib "Kritis", "Perlu dicek", "Bisa ditunda".
+- Nama identifier, perintah, flag, field JSON, dan teks yang tampil ke user (label tier, ringkasan, markdown, komentar, pesan MCP, peringatan, prompt agent) dalam Bahasa Inggris. Label tier wajib "Critical", "Review", "Defer". Jangan menambah flag `--lang` atau varian bahasa Indonesia.
 - Dependency: hanya dari daftar PRD §10.3. Tambahkan dengan `cargo add` (versi stabil terbaru), jangan menulis nomor versi karangan. Dependency baru di luar daftar wajib dijelaskan di PR.
 - `reqwest` wajib memakai rustls (`default-features = false`, fitur rustls). `rusqlite` wajib fitur `bundled`.
 - Jangan pernah mencetak token (`GITHUB_TOKEN`, `GITLAB_TOKEN`) ke log.

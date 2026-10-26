@@ -55,7 +55,7 @@ fn parse_requirements(path: &Path, content: &str) -> Result<ParsedLockfile, Core
                 source_files: Vec::new(),
                 line: Some(u32::try_from(line_no).unwrap_or(u32::MAX)),
             }),
-            None => warnings.push(format!("{source}:{line_no}: baris tidak dipin, dilewati")),
+            None => warnings.push(format!("{source}:{line_no}: line is not pinned, skipped")),
         }
     }
 
@@ -174,7 +174,7 @@ Friendly.Bard==0.1.0
         );
         assert_eq!(
             parsed.warnings,
-            vec!["requirements.txt:4: baris tidak dipin, dilewati".to_string()]
+            vec!["requirements.txt:4: line is not pinned, skipped".to_string()]
         );
     }
 }

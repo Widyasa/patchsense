@@ -6,6 +6,7 @@
 # (CVE-2021-44228), which is in the CISA KEV catalog.
 #
 # Requires `patchsense` on PATH and the vhs tools (ttyd, ffmpeg).
+# The table is English (Critical / Review / Defer). No language flag.
 
 Output docs/demo.gif
 

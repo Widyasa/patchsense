@@ -141,25 +141,25 @@ pub struct Advisory {
     pub fixed_versions: Vec<String>,
 }
 
-/// Priority bucket. The English variant is the JSON value; the label is Indonesian.
+/// Priority bucket. The variant name is the JSON value; [`Tier::label`] is the table text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Tier {
-    /// Score at or above the critical threshold. Label: Kritis.
+    /// Score at or above the critical threshold. Label: Critical.
     Critical,
-    /// Score at or above the review threshold. Label: Perlu dicek.
+    /// Score at or above the review threshold. Label: Review.
     Review,
-    /// Score below the review threshold. Label: Bisa ditunda.
+    /// Score below the review threshold. Label: Defer.
     Defer,
 }
 
 impl Tier {
-    /// User-facing Indonesian label.
-    pub fn label_id(self) -> &'static str {
+    /// User-facing English label.
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Critical => "Kritis",
-            Self::Review => "Perlu dicek",
-            Self::Defer => "Bisa ditunda",
+            Self::Critical => "Critical",
+            Self::Review => "Review",
+            Self::Defer => "Defer",
         }
     }
 }
@@ -460,10 +460,10 @@ mod tests {
     }
 
     #[test]
-    fn tier_labels_are_indonesian() {
-        assert_eq!(Tier::Critical.label_id(), "Kritis");
-        assert_eq!(Tier::Review.label_id(), "Perlu dicek");
-        assert_eq!(Tier::Defer.label_id(), "Bisa ditunda");
+    fn tier_labels_are_english() {
+        assert_eq!(Tier::Critical.label(), "Critical");
+        assert_eq!(Tier::Review.label(), "Review");
+        assert_eq!(Tier::Defer.label(), "Defer");
     }
 
     #[test]
@@ -505,7 +505,7 @@ mod tests {
         let parsed = ParsedLockfile {
             ecosystem: Ecosystem::Npm,
             packages: vec![package.clone()],
-            warnings: vec!["baris 12 tidak dipin, dilewati".to_string()],
+            warnings: vec!["line 12 is not pinned, skipped".to_string()],
         };
         let finding = Finding {
             advisory: advisory.clone(),
@@ -539,6 +539,6 @@ mod tests {
         assert_eq!(restored.schema_version, 1);
         assert_eq!(restored.findings[0].advisory.id, "GHSA-35jh-r3h4-6jhm");
         assert_eq!(restored.findings[0].package.name, "lodash");
-        assert_eq!(restored.findings[0].tier.label_id(), "Bisa ditunda");
+        assert_eq!(restored.findings[0].tier.label(), "Defer");
     }
 }

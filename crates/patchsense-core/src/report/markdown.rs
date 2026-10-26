@@ -5,8 +5,8 @@ use crate::model::{Finding, Report};
 /// Marker that `patchsense comment` searches for.
 pub const MARKER: &str = "<!-- patchsense-report -->";
 
-/// Empty-report sentence required by the spec.
-pub const EMPTY: &str = "Tidak ada kerentanan";
+/// Empty-report sentence.
+pub const EMPTY: &str = "No vulnerabilities";
 
 /// Render a comment. `top` limits the table and the folded details.
 pub fn render_markdown(report: &Report, top: usize) -> String {
@@ -16,20 +16,20 @@ pub fn render_markdown(report: &Report, top: usize) -> String {
     let shown: Vec<&Finding> = report.findings.iter().take(top).collect();
     let mut out = String::new();
     out.push_str(MARKER);
-    out.push_str("\n\n## Ringkasan\n\n");
+    out.push_str("\n\n## Summary\n\n");
     out.push_str(&format!(
-        "| Tingkat | Jumlah |\n| --- | ---: |\n| Kritis | {} |\n| Perlu dicek | {} |\n| Bisa ditunda | {} |\n\n",
+        "| Tier | Count |\n| --- | ---: |\n| Critical | {} |\n| Review | {} |\n| Defer | {} |\n\n",
         report.summary.critical, report.summary.review, report.summary.defer
     ));
-    out.push_str("## Temuan\n\n");
+    out.push_str("## Findings\n\n");
     out.push_str(
-        "| Skor | Tingkat | Paket | Versi | Advisory |\n| ---: | --- | --- | --- | --- |\n",
+        "| Score | Tier | Package | Version | Advisory |\n| ---: | --- | --- | --- | --- |\n",
     );
     for finding in &shown {
         out.push_str(&format!(
             "| {} | {} | {} | {} | {} |\n",
             finding.score,
-            finding.tier.label_id(),
+            finding.tier.label(),
             finding.package.name,
             finding.package.version,
             finding.advisory.id
@@ -57,7 +57,7 @@ fn detail(finding: &Finding) -> String {
                 fix = item.fix_available
             )
         })
-        .unwrap_or_else(|| "- skor: belum dihitung\n".to_string());
+        .unwrap_or_else(|| "- score: not calculated\n".to_string());
     let mut links = finding.advisory.references.clone();
     if links.is_empty() {
         links.push(format!(
@@ -76,12 +76,12 @@ fn detail(finding: &Finding) -> String {
         .map(|item| format!("\n**{}:** {}\n", item.disclaimer, item.text))
         .unwrap_or_default();
     format!(
-        "<details>\n<summary>{id} {name}@{version} — skor {score} ({tier})</summary>\n\n{summary}\n\n{breakdown}\n{links}{explanation}</details>\n\n",
+        "<details>\n<summary>{id} {name}@{version} — score {score} ({tier})</summary>\n\n{summary}\n\n{breakdown}\n{links}{explanation}</details>\n\n",
         id = finding.advisory.id,
         name = finding.package.name,
         version = finding.package.version,
         score = finding.score,
-        tier = finding.tier.label_id(),
+        tier = finding.tier.label(),
         summary = finding.advisory.summary,
         links = link_lines
     )
@@ -169,9 +169,9 @@ mod tests {
         item.signals.explanation = Some(Explanation {
             agent: "codex".to_string(),
             text: "Upgrade lodash to 4.17.21.".to_string(),
-            disclaimer: "Penjelasan AI, bisa keliru".to_string(),
+            disclaimer: "AI explanation, may be wrong".to_string(),
         });
         let text = render_markdown(&report(vec![item]), 20);
-        assert!(text.contains("**Penjelasan AI, bisa keliru:** Upgrade lodash to 4.17.21."));
+        assert!(text.contains("**AI explanation, may be wrong:** Upgrade lodash to 4.17.21."));
     }
 }

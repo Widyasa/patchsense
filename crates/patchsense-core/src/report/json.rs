@@ -283,7 +283,7 @@ impl FindingJson {
             }),
             score: finding.score,
             tier: tier_token(finding.tier),
-            tier_label: finding.tier.label_id(),
+            tier_label: finding.tier.label(),
             score_breakdown: BreakdownJson {
                 kev: json_number(breakdown.kev),
                 epss: json_number(breakdown.epss),

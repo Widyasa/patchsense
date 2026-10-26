@@ -4,22 +4,22 @@ expression: filled
 ---
 <!-- patchsense-report -->
 
-## Ringkasan
+## Summary
 
-| Tingkat | Jumlah |
+| Tier | Count |
 | --- | ---: |
-| Kritis | 0 |
-| Perlu dicek | 0 |
-| Bisa ditunda | 1 |
+| Critical | 0 |
+| Review | 0 |
+| Defer | 1 |
 
-## Temuan
+## Findings
 
-| Skor | Tingkat | Paket | Versi | Advisory |
+| Score | Tier | Package | Version | Advisory |
 | ---: | --- | --- | --- | --- |
-| 37 | Bisa ditunda | lodash | 4.17.15 | GHSA-35jh-r3h4-6jhm |
+| 37 | Defer | lodash | 4.17.15 | GHSA-35jh-r3h4-6jhm |
 
 <details>
-<summary>GHSA-35jh-r3h4-6jhm lodash@4.17.15 — skor 37 (Bisa ditunda)</summary>
+<summary>GHSA-35jh-r3h4-6jhm lodash@4.17.15 — score 37 (Defer)</summary>
 
 Command Injection in lodash
 

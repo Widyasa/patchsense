@@ -34,7 +34,7 @@ pub fn start_scan_progress(stderr_tty: bool) -> Option<ProgressBar> {
     if let Ok(style) = ProgressStyle::with_template("{spinner} {msg}") {
         bar.set_style(style);
     }
-    bar.set_message("memindai lockfile");
+    bar.set_message("scanning lockfiles");
     bar.enable_steady_tick(Duration::from_millis(120));
     Some(bar)
 }

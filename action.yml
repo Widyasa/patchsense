@@ -1,36 +1,36 @@
 name: PatchSense
-description: Triage CVE berprioritas dari lockfile (OSV + EPSS + KEV + CVSS)
+description: Prioritize CVEs from lockfiles (OSV + EPSS + KEV + CVSS)
 branding:
   icon: shield
   color: red
 
 inputs:
   path:
-    description: Direktori atau lockfile yang di-scan
+    description: Directory or lockfile to scan
     default: "."
   version:
-    description: Versi PatchSense (mis. 0.1.0) atau latest
+    description: PatchSense version (for example 0.1.0) or latest
     default: latest
   fail-on:
-    description: critical | review | any | never | angka 0-100
+    description: critical | review | any | never | a number from 0 to 100
     default: critical
   config:
-    description: Path patchsense.toml
+    description: Path to patchsense.toml
     default: ""
   sarif:
-    description: Unggah SARIF ke code scanning
+    description: Upload SARIF to code scanning
     default: "true"
   comment:
-    description: Komentar ringkasan di PR
+    description: Post a summary comment on the pull request
     default: "true"
   explain:
-    description: Jalankan --explain bila CLI agent tersedia di runner
+    description: Run --explain when a CLI agent is available on the runner
     default: "false"
   github-token:
-    description: Token untuk komentar PR
+    description: Token used to comment on the pull request
     default: ${{ github.token }}
   binary-path:
-    description: Internal. Path biner patchsense yang sudah dibangun. Melewati installer rilis.
+    description: Internal. Path to a PatchSense binary that is already built. Skips the release installer.
     default: ""
 
 outputs:
@@ -38,13 +38,13 @@ outputs:
     description: Path report JSON
     value: patchsense-report.json
   sarif-path:
-    description: Path SARIF
+    description: SARIF report path
     value: patchsense.sarif
   max-score:
-    description: Skor tertinggi
+    description: Highest score
     value: ${{ steps.scan.outputs.max-score }}
   critical-count:
-    description: Jumlah temuan Kritis
+    description: Number of Critical findings
     value: ${{ steps.scan.outputs.critical-count }}
 
 runs:

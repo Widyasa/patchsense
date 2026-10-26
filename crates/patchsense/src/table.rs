@@ -22,10 +22,10 @@ pub fn render_table(report: &Report, color: bool, min_score: u32) -> String {
         .set_content_arrangement(ContentArrangement::Disabled)
         .force_no_tty()
         .set_header([
-            "Skor",
-            "Tingkat",
-            "Paket",
-            "Versi",
+            "Score",
+            "Tier",
+            "Package",
+            "Version",
             "Advisory/CVE",
             "KEV",
             "EPSS",
@@ -50,8 +50,7 @@ pub fn render_table(report: &Report, color: bool, min_score: u32) -> String {
         .iter()
         .filter(|finding| finding.tier == Tier::Defer)
         .count();
-    let mut text =
-        format!("{table}\nKritis: {critical}  Perlu dicek: {review}  Bisa ditunda: {defer}\n");
+    let mut text = format!("{table}\nCritical: {critical}  Review: {review}  Defer: {defer}\n");
     if let Some(explanation) = shown
         .iter()
         .find_map(|finding| finding.signals.explanation.as_ref())
@@ -65,7 +64,7 @@ pub fn render_table(report: &Report, color: bool, min_score: u32) -> String {
 }
 
 fn row(finding: &Finding, color: bool) -> Vec<Cell> {
-    let tier = Cell::new(finding.tier.label_id());
+    let tier = Cell::new(finding.tier.label());
     let tier = if color {
         tier.fg(tier_color(finding.tier))
     } else {
@@ -78,9 +77,9 @@ fn row(finding: &Finding, color: bool) -> Vec<Cell> {
         Cell::new(&finding.package.version),
         Cell::new(advisory_label(finding)),
         Cell::new(if finding.signals.kev.is_some() {
-            "ya"
+            "yes"
         } else {
-            "tidak"
+            "no"
         }),
         Cell::new(match &finding.signals.epss {
             Some(epss) => format!("{:.4}", epss.score),
@@ -219,8 +218,8 @@ mod tests {
         assert!(colored.contains('\u{1b}'), "{colored}");
         let filtered = render_table(&report, false, 40);
         assert!(!filtered.contains('\u{1b}'));
-        assert!(filtered.contains("Kritis: 1"));
-        assert!(filtered.contains("Bisa ditunda: 0"));
+        assert!(filtered.contains("Critical: 1"));
+        assert!(filtered.contains("Defer: 0"));
         assert!(!filtered.contains(" 37 "));
     }
 
@@ -230,9 +229,9 @@ mod tests {
         report.findings[0].signals.explanation = Some(patchsense_core::model::Explanation {
             agent: "codex".into(),
             text: "Upgrade lodash.".into(),
-            disclaimer: "Penjelasan AI, bisa keliru".into(),
+            disclaimer: "AI explanation, may be wrong".into(),
         });
         let text = render_table(&report, false, 0);
-        assert!(text.contains("Penjelasan AI, bisa keliru: Upgrade lodash."));
+        assert!(text.contains("AI explanation, may be wrong: Upgrade lodash."));
     }
 }

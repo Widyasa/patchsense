@@ -1,8 +1,8 @@
 # PatchSense
 
-`patchsense scan .` reads lockfiles, matches them to [OSV](https://osv.dev), and ranks each advisory with EPSS, CISA KEV, and CVSS. The table says which findings are **Kritis**, which are **Perlu dicek**, and which **Bisa ditunda**.
+`patchsense scan .` reads lockfiles, matches them to [OSV](https://osv.dev), and ranks each advisory with EPSS, CISA KEV, and CVSS. The table says which findings are **Critical**, which are **Review**, and which are **Defer**.
 
-![Scan of log4j-core 2.14.1 showing CVE-2021-44228 as Kritis](docs/demo.gif)
+![Scan of log4j-core 2.14.1 showing CVE-2021-44228 as Critical](docs/demo.gif)
 
 License: `MIT OR Apache-2.0` ([`LICENSE-MIT`](LICENSE-MIT), [`LICENSE-APACHE`](LICENSE-APACHE)).
 
@@ -57,7 +57,7 @@ Each finding is 0–100. Default weights sum to 100. A weight set that does not 
 | Direct | 10 | The package is a direct dependency |
 | Fix available | 10 | OSV lists a fixed version |
 
-Default tiers: **Kritis** at 70 and above, **Perlu dicek** at 40 and above, otherwise **Bisa ditunda**. `--fail-on critical` is the default, so a Kritis finding exits 1.
+Default tiers: **Critical** at 70 and above, **Review** at 40 and above, otherwise **Defer**. `--fail-on critical` is the default, so a Critical finding exits 1. Output is English only.
 
 ## GitHub Actions
 
@@ -107,7 +107,7 @@ patchsense init --agent
 
 `--print-mcp-config` prints snippets for Cursor (`.cursor/mcp.json`), Claude Code, and Codex. It does not write those files. `--agent` writes an instruction block between `<!-- patchsense:start -->` and `<!-- patchsense:end -->` in `AGENTS.md`, `CLAUDE.md`, and `.cursor/rules/patchsense.mdc`.
 
-`patchsense scan . --explain` asks a local read-only agent (Codex, Claude Code, or Cursor) to explain the top findings. The text is labeled `Penjelasan AI, bisa keliru`. A missing agent, a timeout, or a bad response is a warning. It does not change the exit code. This command needs one of those CLIs on `PATH`.
+`patchsense scan . --explain` asks a local read-only agent (Codex, Claude Code, or Cursor) to explain the top findings. The text is labeled `AI explanation, may be wrong`. A missing agent, a timeout, or a bad response is a warning. It does not change the exit code. This command needs one of those CLIs on `PATH`.
 
 MCP tools: `list_supported_lockfiles`, `scan_project`, `get_finding`, `get_fix_plan`, `explain_score`. `explain_score` is deterministic. It does not call an AI model.
 

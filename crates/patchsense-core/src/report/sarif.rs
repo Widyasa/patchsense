@@ -77,7 +77,7 @@ fn result(finding: &Finding) -> Value {
         "level": level(finding.tier),
         "message": {
             "text": format!(
-                "{}@{}: {} (skor {})",
+                "{}@{}: {} (score {})",
                 finding.package.name, finding.package.version, finding.advisory.summary, finding.score
             )
         },
