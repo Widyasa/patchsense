@@ -132,3 +132,7 @@ Supported lockfiles: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `poetry
 ## Spec
 
 The design source is [`docs/PRD.md`](docs/PRD.md). The task list is [`docs/TASKS.md`](docs/TASKS.md). Agent rules are [`AGENTS.md`](AGENTS.md).
+
+## Contributing
+
+Contributions are licensed under `MIT OR Apache-2.0`, the same as the project. Fork the repository, branch from `master`, and open a pull request that says `Closes #N`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the toolchain, the local checks, and how to add a lockfile parser or a report format.
