@@ -160,8 +160,8 @@ set +e
 offline_err=$(php "$root/bin/patchsense" --version 2>&1)
 offline_code=$?
 set -e
-if [ "$offline_code" -eq 0 ]; then
-  echo "uncached run succeeded without a server" >&2
+if [ "$offline_code" -ne 2 ]; then
+  echo "uncached run exit code was $offline_code, want 2" >&2
   exit 1
 fi
 echo "$offline_err" | grep -q "download failed" || {
@@ -290,8 +290,8 @@ assert_missing() {
   label=$1
   err=$2
   code=$3
-  if [ "$code" -eq 0 ]; then
-    echo "$label succeeded on HTTP 404" >&2
+  if [ "$code" -ne 2 ]; then
+    echo "$label exit code was $code, want 2" >&2
     exit 1
   fi
   for phrase in "not published yet" "cargo install patchsense --locked" "building from source" "PATCHSENSE_BINARY=/path/to/patchsense"; do
@@ -324,6 +324,19 @@ rm -rf "$empty_stage"
 assert_missing "php 404" "$php_err" "$php_code"
 assert_missing "shell 404" "$shell_err" "$shell_code"
 echo "missing release ok"
+
+set +e
+missing_php=$(PATCHSENSE_BINARY=/nope/patchsense php "$root/bin/patchsense" --version 2>&1)
+missing_php_code=$?
+missing_shell=$(PATCHSENSE_BINARY=/nope/patchsense "$root/scripts/fetch-release.sh" --version 2>&1)
+missing_shell_code=$?
+set -e
+if [ "$missing_php_code" -ne 2 ] || [ "$missing_shell_code" -ne 2 ]; then
+  echo "missing binary php=$missing_php_code shell=$missing_shell_code" >&2
+  printf '%s\n' "$missing_php" "$missing_shell" >&2
+  exit 1
+fi
+echo "missing binary ok"
 
 (cd "$root" && go test -count=1 ./go/cmd/patchsense)
 echo "go launcher ok"

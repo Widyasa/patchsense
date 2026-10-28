@@ -23,11 +23,11 @@ expression: filled
 
 Command Injection in lodash
 
-- KEV: 0
-- EPSS: 3.075
-- CVSS: 14.4
-- direct: 10
-- fix: 10
+- KEV points: 0.00
+- EPSS points: 3.08
+- CVSS points: 14.40
+- direct points: 10.00
+- fix points: 10.00
 
 - https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm
 </details>

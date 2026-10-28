@@ -32,7 +32,10 @@ pub enum Command {
 #[derive(Debug, Parser)]
 pub struct CacheArgs {
     /// Directory that contains `cache.db`. Overrides `PATCHSENSE_CACHE_DIR`.
-    #[arg(long)]
+    ///
+    /// Global so `cache info --cache-dir DIR` is accepted as well as
+    /// `cache --cache-dir DIR info`.
+    #[arg(long, global = true)]
     pub cache_dir: Option<PathBuf>,
 
     /// Cache subcommand.

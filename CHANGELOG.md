@@ -37,6 +37,14 @@ Replace `YYYY-MM-DD` with the day `cargo publish` runs. See [`docs/release-check
 
 ### Fixed
 
+- `--offline` loads EPSS and KEV from the SQLite cache, so a warm cache scores the same as an online scan. A missing or expired OSV query or advisory exits 2 instead of reporting zero findings. A missing EPSS row or KEV catalog stays a warning and counts as absent (#135).
+- JSON `data_sources` records whether OSV, EPSS, and KEV came from the cache. `osv.fetched_at` is the stored fetch time when the rows came from the cache (#135).
+- Markdown score lines are labeled as points and rounded to two decimal places. A table cut off at the top rows says how many findings were left out and points at the JSON or SARIF report (#135).
+- Composer `dev-*` versions, `*.x-dev` versions, and `dist.type` `path` packages are skipped with a warning and are not sent to OSV (#135).
+- Composer, Go, and the shell launcher exit 2 when they cannot start the binary, including a missing `PATCHSENSE_BINARY` and an unpublished release. The child process exit code is unchanged (#135).
+- `--no-dev` reports the filtered package count on each lockfile (#135).
+- `patchsense cache info --cache-dir DIR` and `patchsense cache clear --cache-dir DIR` are accepted (#135).
+- A `bun.lock` or `bun.lockb` file produces a warning. It is still not parsed (#135).
 - Composer, Go, and the Docker entrypoint say release `v0.1.0` is not published yet when the GitHub Release or archive is missing (HTTP 404), and they list `cargo install`, a source build, and `PATCHSENSE_BINARY`. `PATCHSENSE_BINARY` skips the download. A Go pseudo-version from `@latest` before any tag still requests release `v0.1.0` and says so (#123, #124).
 - `.github/workflows/pypi.yml` no longer uses `matrix` in a job-level `if`, so GitHub accepts the file. Publish still runs only on tags whose names start with `v`.
 - The GitLab template accepts `PATCHSENSE_VERSION` as `0.1.0` or `v0.1.0` and does not request tag `vv0.1.0`.

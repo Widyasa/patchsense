@@ -22,7 +22,7 @@ func main() {
 	code, err := launch(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "patchsense: %s\n", err)
-		os.Exit(1)
+		os.Exit(2)
 	}
 	os.Exit(code)
 }

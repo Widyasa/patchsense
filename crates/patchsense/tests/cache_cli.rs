@@ -26,3 +26,21 @@ fn cache_info_and_clear_use_the_env_dir() {
         .success()
         .stdout(predicate::str::contains("no cache"));
 }
+
+#[test]
+fn cache_info_accepts_cache_dir_after_the_subcommand() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut info = Command::cargo_bin("patchsense").expect("binary");
+    info.arg("cache")
+        .arg("info")
+        .arg("--cache-dir")
+        .arg(dir.path())
+        .env_remove("PATCHSENSE_CACHE_DIR")
+        .env_remove("XDG_CACHE_HOME");
+    info.assert()
+        .success()
+        .stdout(predicate::str::contains(
+            dir.path().join("cache.db").to_string_lossy().as_ref(),
+        ))
+        .stdout(predicate::str::contains("status: absent"));
+}

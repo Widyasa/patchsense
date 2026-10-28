@@ -39,11 +39,22 @@ pub fn render_markdown(report: &Report, top: usize) -> String {
             advisory
         ));
     }
+    let hidden = report.findings.len().saturating_sub(shown.len());
+    if hidden > 0 {
+        let noun = if hidden == 1 { "finding" } else { "findings" };
+        out.push_str(&format!(
+            "\n{hidden} more {noun} are not shown. The full list is in the JSON or SARIF report.\n"
+        ));
+    }
     out.push('\n');
     for finding in &shown {
         out.push_str(&detail(finding));
     }
     out
+}
+
+fn points(value: f64) -> String {
+    format!("{:.2}", (value * 100.0).round() / 100.0)
 }
 
 fn detail(finding: &Finding) -> String {
@@ -52,13 +63,22 @@ fn detail(finding: &Finding) -> String {
         .breakdown
         .as_ref()
         .map(|item| {
+            let kev = match finding.signals.kev {
+                Some(_) => format!("{} (listed)", points(item.kev)),
+                None => points(item.kev),
+            };
+            let epss = match &finding.signals.epss {
+                Some(epss) => format!("{} (probability {})", points(item.epss), points(epss.score)),
+                None => points(item.epss),
+            };
+            let cvss = match &finding.signals.cvss {
+                Some(cvss) => format!("{} (base {})", points(item.cvss), points(cvss.base_score)),
+                None => points(item.cvss),
+            };
             format!(
-                "- KEV: {kev}\n- EPSS: {epss}\n- CVSS: {cvss}\n- direct: {direct}\n- fix: {fix}\n",
-                kev = item.kev,
-                epss = item.epss,
-                cvss = item.cvss,
-                direct = item.direct,
-                fix = item.fix_available
+                "- KEV points: {kev}\n- EPSS points: {epss}\n- CVSS points: {cvss}\n- direct points: {direct}\n- fix points: {fix}\n",
+                direct = points(item.direct),
+                fix = points(item.fix_available)
             )
         })
         .unwrap_or_else(|| "- score: not calculated\n".to_string());
@@ -184,5 +204,20 @@ mod tests {
         });
         let text = render_markdown(&report(vec![item]), 20);
         assert!(text.contains("**AI explanation, may be wrong:** Upgrade lodash to 4.17.21."));
+    }
+
+    #[test]
+    fn truncated_table_counts_the_hidden_findings() {
+        let findings = vec![finding(), finding(), finding()];
+        let text = render_markdown(&report(findings), 1);
+        assert!(text.contains("2 more findings are not shown"));
+        assert!(text.contains("JSON or SARIF"));
+        assert_eq!(text.matches("<details>").count(), 1);
+    }
+
+    #[test]
+    fn score_points_round_binary_noise() {
+        assert_eq!(points(0.9174999999999999), "0.92");
+        assert_eq!(points(19.6), "19.60");
     }
 }

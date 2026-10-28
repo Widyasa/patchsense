@@ -63,8 +63,8 @@ func TestLaunchFakeAndRealBinary(t *testing.T) {
 
 	t.Setenv("PATCHSENSE_CACHE_DIR", t.TempDir())
 	_, code = launchCapture(t, "--version")
-	if code == 0 {
-		t.Fatal("uncached run succeeded without a server")
+	if code != 2 {
+		t.Fatalf("uncached run exit code %d, want 2", code)
 	}
 }
 
@@ -189,7 +189,7 @@ func launchCapture(t *testing.T, args ...string) (string, int) {
 	_, _ = buf.ReadFrom(r)
 	r.Close()
 	if launchErr != nil && code == 0 {
-		return launchErr.Error(), 1
+		return launchErr.Error(), 2
 	}
 	return buf.String(), code
 }
@@ -280,8 +280,8 @@ func TestMissingRelease404(t *testing.T) {
 	t.Setenv("PATCHSENSE_CACHE_DIR", cache)
 
 	errText, code := launchCapture(t, "--version")
-	if code == 0 {
-		t.Fatal("404 was treated as success")
+	if code != 2 {
+		t.Fatalf("404 exit code %d, want 2", code)
 	}
 	assertNotPublished(t, errText)
 	if strings.Contains(errText, "v0.0.0-") {
@@ -296,8 +296,8 @@ func TestMissingRelease404(t *testing.T) {
 	moduleVersion = func() string { return "v0.0.0-20261028141100-abcdefabcdef" }
 	t.Cleanup(func() { moduleVersion = prev })
 	errText, code = launchCapture(t, "--version")
-	if code == 0 {
-		t.Fatal("pseudo-version 404 was treated as success")
+	if code != 2 {
+		t.Fatalf("pseudo-version 404 exit code %d, want 2", code)
 	}
 	assertNotPublished(t, errText)
 	if !strings.Contains(errText, "v0.0.0-20261028141100-abcdefabcdef") || !strings.Contains(errText, "pseudo-version") {
@@ -335,8 +335,8 @@ func TestAsset404IsNotPublished(t *testing.T) {
 	t.Setenv("PATCHSENSE_TARGET", triple)
 	t.Setenv("PATCHSENSE_CACHE_DIR", t.TempDir())
 	errText, code := launchCapture(t, "--version")
-	if code == 0 {
-		t.Fatal("missing archive was treated as success")
+	if code != 2 {
+		t.Fatalf("missing archive exit code %d, want 2", code)
 	}
 	assertNotPublished(t, errText)
 	if !strings.Contains(errText, name) {
@@ -361,7 +361,7 @@ func TestBinaryOverrideSkipsDownload(t *testing.T) {
 	}
 	t.Setenv("PATCHSENSE_BINARY", filepath.Join(t.TempDir(), "missing"))
 	errText, code := launchCapture(t, "--version")
-	if code == 0 || !strings.Contains(errText, "PATCHSENSE_BINARY=") {
+	if code != 2 || !strings.Contains(errText, "PATCHSENSE_BINARY=") {
 		t.Fatalf("missing override code=%d out=%q", code, errText)
 	}
 }

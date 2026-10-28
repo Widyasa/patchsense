@@ -134,6 +134,19 @@ impl Cache {
         now: i64,
         ttl: Duration,
     ) -> Result<Option<String>, CoreError> {
+        Ok(self
+            .get_osv_document(id, modified, now, ttl)?
+            .map(|(json, _)| json))
+    }
+
+    /// Cached OSV document and the Unix time it was stored, inside `ttl`.
+    pub fn get_osv_document(
+        &self,
+        id: &str,
+        modified: &str,
+        now: i64,
+        ttl: Duration,
+    ) -> Result<Option<(String, i64)>, CoreError> {
         let row = self.with_conn(|conn| {
             conn.query_row(
                 "SELECT modified, json, fetched_at FROM osv_vuln WHERE id = ?1",
@@ -150,7 +163,7 @@ impl Cache {
         })?;
         Ok(row.and_then(|(stored_modified, json, fetched_at)| {
             if stored_modified == modified && fresh(fetched_at, now, ttl) {
-                Some(json)
+                Some((json, fetched_at))
             } else {
                 None
             }
@@ -244,7 +257,7 @@ impl Cache {
         version: &str,
         now: i64,
         ttl: Duration,
-    ) -> Result<Option<Vec<CachedOsvRef>>, CoreError> {
+    ) -> Result<Option<(Vec<CachedOsvRef>, i64)>, CoreError> {
         let row = self.with_conn(|conn| {
             conn.query_row(
                 "SELECT ids_json, fetched_at FROM osv_query WHERE ecosystem = ?1 AND name = ?2 AND version = ?3",
@@ -253,7 +266,8 @@ impl Cache {
             )
             .optional()
         })?;
-        let Some((json, _)) = row.filter(|(_, fetched_at)| fresh(*fetched_at, now, ttl)) else {
+        let Some((json, fetched_at)) = row.filter(|(_, fetched_at)| fresh(*fetched_at, now, ttl))
+        else {
             return Ok(None);
         };
         let refs: Vec<CachedOsvRef> =
@@ -263,7 +277,7 @@ impl Cache {
                     "osv_query for {ecosystem} {name}@{version} is invalid JSON: {err}"
                 ),
             })?;
-        Ok(Some(refs))
+        Ok(Some((refs, fetched_at)))
     }
 
     /// Insert or replace the `querybatch` ids for one package.

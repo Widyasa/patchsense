@@ -40,7 +40,7 @@ function main(array $argv): void
 function fail(string $message): void
 {
     fwrite(STDERR, "patchsense: {$message}\n");
-    exit(1);
+    exit(2);
 }
 
 function missing_release(string $url): string
@@ -255,7 +255,7 @@ function run_binary(string $binary, array $args): void
         fail("failed to execute {$binary}");
     }
     $code = proc_close($proc);
-    exit($code === false ? 1 : $code);
+    exit($code === false ? 2 : $code);
 }
 
 function http_get(string $url): string

@@ -205,7 +205,7 @@ where
 pub struct AdvisoryCache<'a> {
     /// Open cache. `None` always uses the network (unless `offline`).
     pub cache: Option<&'a Cache>,
-    /// Skip the network. Misses are warnings.
+    /// Skip the network. A miss is an error.
     pub offline: bool,
     /// Unix seconds for the TTL check and for new rows.
     pub now: i64,
@@ -213,36 +213,83 @@ pub struct AdvisoryCache<'a> {
     pub ttl: std::time::Duration,
 }
 
+/// Where a cached or downloaded OSV row came from.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct FetchOrigin {
+    network: bool,
+    cached_at: Vec<i64>,
+}
+
+impl FetchOrigin {
+    pub(crate) fn note_cache(&mut self, at: i64) {
+        self.cached_at.push(at);
+    }
+
+    pub(crate) fn note_network(&mut self) {
+        self.network = true;
+    }
+
+    pub(crate) fn merge(&mut self, other: &FetchOrigin) {
+        self.network |= other.network;
+        self.cached_at.extend(other.cached_at.iter().copied());
+    }
+
+    /// True when every row used was a cache hit and at least one row was used.
+    pub(crate) fn served_from_cache(&self) -> bool {
+        !self.network && !self.cached_at.is_empty()
+    }
+
+    /// Oldest cache timestamp, or `now` when this run downloaded data.
+    pub(crate) fn fetched_at(&self, now: i64) -> i64 {
+        if self.network || self.cached_at.is_empty() {
+            now
+        } else {
+            self.cached_at.iter().copied().min().unwrap_or(now)
+        }
+    }
+}
+
 /// Fetch advisories, using `cache` when `modified` matches and the TTL holds.
 ///
-/// Offline misses become warnings and are omitted. They do not call `client`.
-pub async fn fetch_advisories_cached<C>(
+/// An offline miss is an error. It does not call `client`.
+pub(crate) async fn fetch_advisories_cached<C>(
     client: &C,
     base_url: &str,
     vulns: &[OsvVulnRef],
     package: &Package,
     fetch: &AdvisoryCache<'_>,
-    warnings: &mut Vec<String>,
-) -> Result<Vec<Advisory>, CoreError>
+) -> Result<(Vec<Advisory>, FetchOrigin), CoreError>
 where
     C: HttpClient,
 {
     let mut advisories = Vec::new();
+    let mut origin = FetchOrigin::default();
     for vuln in vulns {
         match fetch_one_cached(client, base_url, vuln, package, fetch).await? {
-            CachedFetch::Hit(advisory) => advisories.push(advisory),
-            CachedFetch::OfflineMiss => warnings.push(format!(
-                "offline: {} is not in the cache for {}@{}",
-                vuln.id, package.name, package.version
-            )),
+            CachedFetch::Hit {
+                advisory,
+                cached_at: Some(at),
+            } => {
+                origin.note_cache(at);
+                advisories.push(advisory);
+            }
+            CachedFetch::Hit {
+                advisory,
+                cached_at: None,
+            } => {
+                origin.note_network();
+                advisories.push(advisory);
+            }
         }
     }
-    Ok(advisories)
+    Ok((advisories, origin))
 }
 
 enum CachedFetch {
-    Hit(Advisory),
-    OfflineMiss,
+    Hit {
+        advisory: Advisory,
+        cached_at: Option<i64>,
+    },
 }
 
 async fn fetch_one_cached<C: HttpClient>(
@@ -254,12 +301,22 @@ async fn fetch_one_cached<C: HttpClient>(
 ) -> Result<CachedFetch, CoreError> {
     let url = join_url(base_url, &format!("/v1/vulns/{}", vuln.id));
     if let Some(cache) = fetch.cache {
-        if let Some(json) = cache.get_osv(&vuln.id, &vuln.modified, fetch.now, fetch.ttl)? {
-            return Ok(CachedFetch::Hit(advisory_from_json(&url, &json, package)?));
+        if let Some((json, fetched_at)) =
+            cache.get_osv_document(&vuln.id, &vuln.modified, fetch.now, fetch.ttl)?
+        {
+            return Ok(CachedFetch::Hit {
+                advisory: advisory_from_json(&url, &json, package)?,
+                cached_at: Some(fetched_at),
+            });
         }
     }
     if fetch.offline {
-        return Ok(CachedFetch::OfflineMiss);
+        return Err(CoreError::OfflineCache {
+            message: format!(
+                "offline cache is missing advisory {} for {}@{}. Run a scan without --offline to fill the cache",
+                vuln.id, package.name, package.version
+            ),
+        });
     }
     let response = client.get(&url).await?;
     if !(200..300).contains(&response.status) {
@@ -271,11 +328,10 @@ async fn fetch_one_cached<C: HttpClient>(
     if let Some(cache) = fetch.cache {
         cache.put_osv(&vuln.id, &vuln.modified, &response.body, fetch.now)?;
     }
-    Ok(CachedFetch::Hit(advisory_from_json(
-        &url,
-        &response.body,
-        package,
-    )?))
+    Ok(CachedFetch::Hit {
+        advisory: advisory_from_json(&url, &response.body, package)?,
+        cached_at: None,
+    })
 }
 
 /// Remember a `querybatch` result. `modified` is stored with each id.
@@ -301,14 +357,22 @@ pub fn cache_query(
     )
 }
 
+/// A cached `querybatch` result and the Unix time it was stored.
+pub struct CachedQuery {
+    /// Advisory ids returned for the package.
+    pub vulns: Vec<OsvVulnRef>,
+    /// Unix seconds stored with the row.
+    pub fetched_at: i64,
+}
+
 /// Load a cached `querybatch` result. `None` means a miss or an expired row.
 pub fn cached_query(
     cache: &Cache,
     package: &Package,
     now: i64,
     ttl: std::time::Duration,
-) -> Result<Option<Vec<OsvVulnRef>>, CoreError> {
-    let Some(refs) = cache.get_osv_query(
+) -> Result<Option<CachedQuery>, CoreError> {
+    let Some((refs, fetched_at)) = cache.get_osv_query(
         package.ecosystem.as_osv_str(),
         &package.name,
         &package.version,
@@ -318,14 +382,16 @@ pub fn cached_query(
     else {
         return Ok(None);
     };
-    Ok(Some(
-        refs.into_iter()
+    Ok(Some(CachedQuery {
+        vulns: refs
+            .into_iter()
             .map(|reference| OsvVulnRef {
                 id: reference.id,
                 modified: reference.modified,
             })
             .collect(),
-    ))
+        fetched_at,
+    }))
 }
 
 /// GET one advisory and compute fixed versions for `package`.
