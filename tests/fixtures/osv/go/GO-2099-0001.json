@@ -1,0 +1,22 @@
+{
+  "id": "GO-2099-0001",
+  "modified": "2026-10-28T00:00:00Z",
+  "summary": "Module-wide issue with no import paths",
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "Go",
+        "name": "golang.org/x/crypto"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            { "introduced": "0" },
+            { "fixed": "0.45.0" }
+          ]
+        }
+      ]
+    }
+  ]
+}

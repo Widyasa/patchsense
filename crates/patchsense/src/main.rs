@@ -104,6 +104,11 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 ignore: loaded.config.ignore.clone(),
                 epss_base_url: epss_base_url(),
                 kev_feed_url: kev_feed_url(),
+                go_imports: patchsense_core::go_imports::GoImportFilter {
+                    skip_vendor: loaded.config.scan.go_imports.skip_vendor,
+                    skip_testdata: loaded.config.scan.go_imports.skip_testdata,
+                    skip_tests: loaded.config.scan.go_imports.skip_tests,
+                },
             };
             let client = ReqwestClient::new().context("failed to build the HTTP client")?;
             let progress = progress::start_scan_progress(progress::stderr_is_tty());

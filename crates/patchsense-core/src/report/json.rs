@@ -221,6 +221,8 @@ struct FindingJson {
     references: Vec<String>,
     ignored: bool,
     explanation: Option<ExplanationJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    import_note: Option<String>,
 }
 
 impl FindingJson {
@@ -299,6 +301,7 @@ impl FindingJson {
                 text: item.text.clone(),
                 disclaimer: item.disclaimer.clone(),
             }),
+            import_note: finding.import_note.clone(),
         }
     }
 }
@@ -435,6 +438,7 @@ mod tests {
                         "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm".to_string()
                     ],
                     fixed_versions: vec!["4.17.21".to_string()],
+                    imports: Vec::new(),
                 },
                 package: Package {
                     ecosystem: Ecosystem::Npm,
@@ -472,6 +476,7 @@ mod tests {
                     }),
                     explanation: None,
                 },
+                import_note: None,
             }],
             warnings,
             summary: Summary {

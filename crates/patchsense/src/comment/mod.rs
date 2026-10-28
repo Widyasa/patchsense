@@ -167,6 +167,7 @@ fn finding_from_json(item: &Value) -> anyhow::Result<Finding> {
             database_specific_severity: None,
             references: strings(&item["references"]),
             fixed_versions: strings(&item["fixed_versions"]),
+            imports: Vec::new(),
         },
         package: Package {
             ecosystem,
@@ -188,6 +189,7 @@ fn finding_from_json(item: &Value) -> anyhow::Result<Finding> {
             breakdown,
             ..FindingSignals::default()
         },
+        import_note: item["import_note"].as_str().map(str::to_string),
     })
 }
 
@@ -235,5 +237,21 @@ mod tests {
         let markdown = render_markdown(&report, 20);
         assert!(markdown.contains("GHSA-35jh-r3h4-6jhm"));
         assert!(markdown.contains("lodash"));
+        assert!(!markdown.contains("imported package not seen"));
+    }
+
+    #[test]
+    fn an_import_note_is_copied_into_the_comment() {
+        let report = parse_rendered_report(
+            r#"{"schema_version":1,"summary":{"findings":1,"by_tier":{"critical":0,"review":0,"defer":1},"max_score":20},"findings":[{"id":"GO-2026-5932","summary":"openpgp","package":{"ecosystem":"Go","name":"golang.org/x/crypto","version":"v0.31.0"},"score":20,"tier":"defer","import_note":"imported package not seen"}]}"#,
+        )
+        .expect("parse");
+        assert_eq!(
+            report.findings[0].import_note.as_deref(),
+            Some("imported package not seen")
+        );
+        assert_eq!(report.findings[0].score, 20);
+        let markdown = render_markdown(&report, 20);
+        assert!(markdown.contains("GO-2026-5932 (imported package not seen)"));
     }
 }

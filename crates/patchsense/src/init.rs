@@ -14,6 +14,11 @@ exclude = ["examples/**", "fixtures/**"]
 include_dev = true
 fail_on = "critical"
 
+[scan.go_imports]
+skip_vendor = true
+skip_testdata = true
+skip_tests = true
+
 [score.weights]
 kev = 35
 epss = 25

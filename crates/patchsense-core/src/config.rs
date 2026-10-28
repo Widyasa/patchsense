@@ -107,6 +107,25 @@ pub struct ScanSection {
     /// Exit-code threshold. Applied by the scan pipeline.
     #[serde(default)]
     pub fail_on: FailOn,
+    /// Which `.go` files the import check ignores. Missing keys stay skipped.
+    #[serde(default)]
+    pub go_imports: GoImportSection,
+}
+
+/// `[scan.go_imports]`. Each flag defaults to true so existing configs keep
+/// the same skips.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GoImportSection {
+    /// Skip a directory named `vendor`.
+    #[serde(default = "default_true")]
+    pub skip_vendor: bool,
+    /// Skip a directory named `testdata`.
+    #[serde(default = "default_true")]
+    pub skip_testdata: bool,
+    /// Skip `*_test.go`.
+    #[serde(default = "default_true")]
+    pub skip_tests: bool,
 }
 
 /// `[score]`.
@@ -301,6 +320,17 @@ impl Default for ScanSection {
             exclude: Vec::new(),
             include_dev: true,
             fail_on: FailOn::Critical,
+            go_imports: GoImportSection::default(),
+        }
+    }
+}
+
+impl Default for GoImportSection {
+    fn default() -> Self {
+        Self {
+            skip_vendor: true,
+            skip_testdata: true,
+            skip_tests: true,
         }
     }
 }
@@ -881,6 +911,15 @@ expires = "2027-01-31"
         );
         assert!(config.scan.include_dev);
         assert_eq!(config.scan.fail_on, FailOn::Critical);
+        assert_eq!(config.scan.go_imports, GoImportSection::default());
+        let turned_off = parse_config_str(
+            Path::new("patchsense.toml"),
+            "[scan.go_imports]\nskip_tests = false\nskip_vendor = false\n",
+        )
+        .expect("go imports");
+        assert!(!turned_off.scan.go_imports.skip_tests);
+        assert!(!turned_off.scan.go_imports.skip_vendor);
+        assert!(turned_off.scan.go_imports.skip_testdata);
         assert_eq!(config.score.weights, Weights::default());
         assert_eq!(config.score.epss.mode, EpssMode::Probability);
         assert!((config.score.epss.saturation - 0.10).abs() < 1e-9);

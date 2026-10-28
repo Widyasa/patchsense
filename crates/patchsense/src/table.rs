@@ -98,9 +98,13 @@ fn row(finding: &Finding, color: bool) -> Vec<Cell> {
 }
 
 fn advisory_label(finding: &Finding) -> String {
-    match finding.signals.cves.first() {
+    let label = match finding.signals.cves.first() {
         Some(cve) => format!("{} ({cve})", finding.advisory.id),
         None => finding.advisory.id.clone(),
+    };
+    match &finding.import_note {
+        Some(note) => format!("{label} ({note})"),
+        None => label,
     }
 }
 
@@ -130,6 +134,7 @@ mod tests {
                 database_specific_severity: None,
                 references: Vec::new(),
                 fixed_versions: vec!["4.17.21".to_string()],
+                imports: Vec::new(),
             },
             package: Package {
                 ecosystem: Ecosystem::Npm,
@@ -165,6 +170,7 @@ mod tests {
                 breakdown: None,
                 explanation: None,
             },
+            import_note: None,
         }
     }
 
@@ -206,6 +212,16 @@ mod tests {
         let text = render_table(&report, false, 0);
         assert!(!text.contains('\u{1b}'), "{text}");
         insta::assert_snapshot!(text);
+    }
+
+    #[test]
+    fn the_advisory_cell_shows_the_import_note() {
+        let mut row = finding(20, Tier::Defer, false);
+        row.signals.cves.clear();
+        row.import_note = Some("imported package not seen".to_string());
+        let text = render_table(&report(vec![row]), false, 0);
+        assert!(text.contains("GHSA-35jh-r3h4-6jhm (imported package not seen)"));
+        assert!(text.contains(" 20 "));
     }
 
     #[test]

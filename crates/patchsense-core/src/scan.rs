@@ -22,6 +22,7 @@ use crate::enrich::epss::{self, DEFAULT_EPSS_URL};
 use crate::enrich::kev::{self, DEFAULT_KEV_URL};
 use crate::enrich::merge_advisories;
 use crate::error::CoreError;
+use crate::go_imports::{self, GoImportFilter};
 use crate::http::HttpClient;
 use crate::lockfile::parser_for;
 use crate::model::{
@@ -68,6 +69,8 @@ pub struct ScanOptions {
     pub epss_base_url: String,
     /// KEV document URL. The CLI sets this from `PATCHSENSE_KEV_URL`.
     pub kev_feed_url: String,
+    /// Directories and test files the Go import check ignores.
+    pub go_imports: GoImportFilter,
 }
 
 impl Default for ScanOptions {
@@ -87,6 +90,7 @@ impl Default for ScanOptions {
             ignore: Vec::new(),
             epss_base_url: DEFAULT_EPSS_URL.to_string(),
             kev_feed_url: DEFAULT_KEV_URL.to_string(),
+            go_imports: GoImportFilter::default(),
         }
     }
 }
@@ -248,6 +252,7 @@ where
                     tier: Tier::Defer,
                     score: 0,
                     signals: FindingSignals::default(),
+                    import_note: None,
                 });
             }
         }
@@ -267,6 +272,8 @@ where
         });
         (findings, Vec::new(), None, None)
     };
+    let mut findings = findings;
+    go_imports::annotate_findings(&mut findings, root, &options.go_imports, &mut warnings);
     let summary = summarize(&findings, packages.len(), options);
     let generated_at = rfc3339_from_unix(now);
 
@@ -404,6 +411,7 @@ where
                     tier: scored.tier,
                     score: scored.score,
                     signals: signals_from(&item, &scored.breakdown),
+                    import_note: None,
                 },
             ));
         }
@@ -715,9 +723,12 @@ fn parse_fix_version(value: &str) -> Option<semver::Version> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::Cache;
     use crate::http::{FakeHttp, HttpResponse, RecordedRequest};
+    use crate::model::{Finding, Report};
     use serde_json::{json, Value};
     use std::fs;
+    use std::path::PathBuf;
 
     fn lodash_advisory() -> String {
         json!({
@@ -1128,5 +1139,238 @@ mod tests {
             minimum_covering_fix(&[vec!["not-semver".to_string()]]),
             None
         );
+    }
+
+    const GO_MODIFIED: &str = "2026-10-28T00:00:00Z";
+
+    fn fixture(rel: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(rel)
+    }
+
+    fn go_bodies() -> (String, String) {
+        (
+            fs::read_to_string(fixture("osv/go/GO-2026-5932.json")).expect("openpgp advisory"),
+            fs::read_to_string(fixture("osv/go/GO-2099-0001.json")).expect("plain advisory"),
+        )
+    }
+
+    fn go_http() -> FakeHttp {
+        let (openpgp, plain) = go_bodies();
+        FakeHttp::with_handler(move |request: &RecordedRequest| {
+            if request.method == "POST" && request.url.ends_with("/v1/querybatch") {
+                let body: Value = serde_json::from_str(&request.body).expect("query json");
+                let queries = body["queries"].as_array().expect("queries");
+                let results: Vec<Value> = queries
+                    .iter()
+                    .map(|query| {
+                        if query["package"]["name"] == "golang.org/x/crypto" {
+                            json!({"vulns": [
+                                {"id": "GO-2026-5932", "modified": GO_MODIFIED},
+                                {"id": "GO-2099-0001", "modified": GO_MODIFIED}
+                            ]})
+                        } else {
+                            json!({})
+                        }
+                    })
+                    .collect();
+                return HttpResponse {
+                    status: 200,
+                    body: json!({"results": results}).to_string(),
+                };
+            }
+            if request.method == "GET" && request.url.ends_with("/v1/vulns/GO-2026-5932") {
+                return HttpResponse {
+                    status: 200,
+                    body: openpgp.clone(),
+                };
+            }
+            if request.method == "GET" && request.url.ends_with("/v1/vulns/GO-2099-0001") {
+                return HttpResponse {
+                    status: 200,
+                    body: plain.clone(),
+                };
+            }
+            HttpResponse {
+                status: 404,
+                body: format!("unexpected {}", request.url),
+            }
+        })
+    }
+
+    fn go_scan_options() -> ScanOptions {
+        ScanOptions {
+            enrich: true,
+            ..ScanOptions::default()
+        }
+    }
+
+    fn finding_by_id<'a>(report: &'a Report, id: &str) -> &'a Finding {
+        report
+            .findings
+            .iter()
+            .find(|finding| finding.advisory.id == id)
+            .unwrap_or_else(|| panic!("missing {id}"))
+    }
+
+    #[tokio::test]
+    async fn argon2_only_keeps_the_openpgp_finding_and_the_score() {
+        let report = scan_with(
+            &go_http(),
+            "https://api.osv.dev",
+            &fixture("go/argon2-only"),
+            &go_scan_options(),
+        )
+        .await
+        .expect("scan");
+        assert_eq!(report.findings.len(), 2);
+        let openpgp = finding_by_id(&report, "GO-2026-5932");
+        let plain = finding_by_id(&report, "GO-2099-0001");
+        assert_eq!(
+            openpgp.import_note.as_deref(),
+            Some(crate::go_imports::IMPORT_NOT_SEEN)
+        );
+        assert!(plain.import_note.is_none());
+        assert!(plain.advisory.imports.is_empty());
+        assert_eq!(openpgp.score, plain.score);
+        assert_eq!(openpgp.score, 20);
+        assert_eq!(openpgp.tier, plain.tier);
+        let openpgp_import = openpgp
+            .advisory
+            .imports
+            .iter()
+            .find(|item| item.path == "golang.org/x/crypto/openpgp")
+            .expect("openpgp path");
+        assert_eq!(openpgp_import.symbols, vec!["ReadMessage".to_string()]);
+        assert!(openpgp
+            .advisory
+            .imports
+            .iter()
+            .all(|item| item.path != "golang.org/x/crypto/argon2"));
+
+        let json = crate::report::render_json(&report).expect("json");
+        let parsed: Value = serde_json::from_str(&json).expect("json value");
+        let schema: Value = serde_json::from_str(
+            &fs::read_to_string(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../schemas/report.v1.json"),
+            )
+            .expect("schema text"),
+        )
+        .expect("schema");
+        let validator = jsonschema::validator_for(&schema).expect("schema compiles");
+        assert!(validator.validate(&parsed).is_ok(), "{json}");
+        let rows = parsed["findings"].as_array().expect("findings");
+        let noted = rows
+            .iter()
+            .find(|row| row["id"] == "GO-2026-5932")
+            .expect("row");
+        assert_eq!(noted["import_note"], "imported package not seen");
+        assert_eq!(noted["score"], 20);
+        let unnoted = rows
+            .iter()
+            .find(|row| row["id"] == "GO-2099-0001")
+            .expect("row");
+        assert!(unnoted.get("import_note").is_none());
+
+        let markdown = crate::report::render_markdown(&report, 20);
+        assert!(markdown.contains("GO-2026-5932 (imported package not seen)"));
+        assert!(markdown.contains("imported package not seen\n"));
+        let sarif = crate::report::render_sarif(&report).expect("sarif");
+        assert!(sarif.contains("imported package not seen"));
+        let gitlab = crate::report::render_gitlab(&report).expect("gitlab");
+        assert!(gitlab.contains("imported package not seen"));
+    }
+
+    #[tokio::test]
+    async fn an_aliased_openpgp_import_leaves_the_note_off() {
+        let report = scan_with(
+            &go_http(),
+            "https://api.osv.dev",
+            &fixture("go/openpgp-alias"),
+            &go_scan_options(),
+        )
+        .await
+        .expect("scan");
+        let openpgp = finding_by_id(&report, "GO-2026-5932");
+        let plain = finding_by_id(&report, "GO-2099-0001");
+        assert!(openpgp.import_note.is_none());
+        assert!(plain.import_note.is_none());
+        assert_eq!(openpgp.score, 20);
+        assert_eq!(plain.score, 20);
+        let json = crate::report::render_json(&report).expect("json");
+        assert!(!json.contains("import_note"));
+        let markdown = crate::report::render_markdown(&report, 20);
+        assert!(!markdown.contains("imported package not seen"));
+    }
+
+    #[tokio::test]
+    async fn offline_cache_still_attaches_the_import_note() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cache_path = dir.path().join("cache.db");
+        let now = 1_700_000_000;
+        {
+            let cache = Cache::open(&cache_path).expect("cache");
+            let (openpgp, plain) = go_bodies();
+            cache
+                .put_osv("GO-2026-5932", GO_MODIFIED, &openpgp, now)
+                .expect("put");
+            cache
+                .put_osv("GO-2099-0001", GO_MODIFIED, &plain, now)
+                .expect("put");
+            cache
+                .put_osv_query(
+                    "Go",
+                    "golang.org/x/crypto",
+                    "v0.31.0",
+                    &[
+                        crate::cache::CachedOsvRef {
+                            id: "GO-2026-5932".to_string(),
+                            modified: GO_MODIFIED.to_string(),
+                        },
+                        crate::cache::CachedOsvRef {
+                            id: "GO-2099-0001".to_string(),
+                            modified: GO_MODIFIED.to_string(),
+                        },
+                    ],
+                    now,
+                )
+                .expect("query");
+            assert_eq!(
+                cache.schema_version().expect("schema"),
+                crate::cache::SCHEMA_VERSION
+            );
+        }
+        let options = ScanOptions {
+            enrich: true,
+            offline: true,
+            no_cache: false,
+            cache_db: Some(cache_path),
+            now: Some(now),
+            ..ScanOptions::default()
+        };
+        let report = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            &fixture("go/argon2-only"),
+            &options,
+        )
+        .await
+        .expect("offline scan");
+        assert!(
+            report
+                .warnings
+                .iter()
+                .all(|warning| !warning.contains("offline:")),
+            "{:?}",
+            report.warnings
+        );
+        let openpgp = finding_by_id(&report, "GO-2026-5932");
+        assert_eq!(
+            openpgp.import_note.as_deref(),
+            Some("imported package not seen")
+        );
+        assert_eq!(openpgp.score, 20);
+        assert!(finding_by_id(&report, "GO-2099-0001").import_note.is_none());
     }
 }

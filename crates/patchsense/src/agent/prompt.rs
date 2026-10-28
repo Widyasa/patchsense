@@ -57,11 +57,12 @@ fn instructions() -> &'static str {
     "You explain dependency vulnerability findings. Answer in English.\n\
 For each finding: one paragraph on impact, then one remediation step.\n\
 Do not invent versions. Quote only fixed versions and links present in the data.\n\
-If a finding has no fixed version, say that no fix version is available."
+If a finding has no fixed version, say that no fix version is available.\n\
+If import_note is \"imported package not seen\", say the listed Go package was not found in the project's .go imports. The score is unchanged, and the note is not proof the package is unused."
 }
 
 fn compact_finding(finding: &Finding) -> serde_json::Value {
-    json!({
+    let mut row = json!({
         "id": finding.advisory.id,
         "package": finding.package.name,
         "ecosystem": finding.package.ecosystem.as_osv_str(),
@@ -74,7 +75,11 @@ fn compact_finding(finding: &Finding) -> serde_json::Value {
         "kev": finding.signals.kev.is_some(),
         "epss": finding.signals.epss.as_ref().map(|item| item.score),
         "references": finding.advisory.references,
-    })
+    });
+    if let Some(note) = &finding.import_note {
+        row["import_note"] = json!(note);
+    }
+    row
 }
 
 fn fit_oversized(report: &Report) -> String {
@@ -84,7 +89,7 @@ fn fit_oversized(report: &Report) -> String {
     let mut references = finding.advisory.references.clone();
     let mut summary = finding.advisory.summary.clone();
     loop {
-        let row = json!({
+        let mut row = json!({
             "id": finding.advisory.id,
             "package": finding.package.name,
             "ecosystem": finding.package.ecosystem.as_osv_str(),
@@ -98,6 +103,9 @@ fn fit_oversized(report: &Report) -> String {
             "epss": finding.signals.epss.as_ref().map(|item| item.score),
             "references": references,
         });
+        if let Some(note) = &finding.import_note {
+            row["import_note"] = json!(note);
+        }
         let data = serde_json::to_string_pretty(&vec![row]).unwrap_or_else(|_| "[]".to_string());
         let prompt = format!(
             "{instructions}\n\n{heading}\n\nData (JSON):\n{data}\n",
@@ -151,6 +159,7 @@ mod tests {
                 database_specific_severity: None,
                 references,
                 fixed_versions: vec!["4.17.21".to_string()],
+                imports: Vec::new(),
             },
             package: Package {
                 ecosystem: Ecosystem::Npm,
@@ -188,6 +197,7 @@ mod tests {
                 }),
                 explanation: None,
             },
+            import_note: None,
         }
     }
 
@@ -219,6 +229,16 @@ mod tests {
         assert!(text.contains("Critical"));
         assert!(!text.contains("Kritis"));
         insta::assert_snapshot!(text);
+    }
+
+    #[test]
+    fn the_prompt_includes_an_import_note_when_one_is_set() {
+        let mut finding = sample(20, Vec::new());
+        finding.import_note = Some("imported package not seen".to_string());
+        let text = build_prompt(&report(vec![finding]), 5);
+        assert!(text.contains("imported package not seen"));
+        assert!(text.contains("The score is unchanged"));
+        assert!(text.contains("\"score\": 20"));
     }
 
     #[test]

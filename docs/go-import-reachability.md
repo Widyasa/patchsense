@@ -1,42 +1,63 @@
 # Go package-level import check
 
-Not implemented. This is the design for the 2026-10-28 smoke test, where GO-2026-5932 (`x/crypto/openpgp`) was reported for a module that the project only imports as `x/crypto/argon2`.
+Implemented. A `go.sum` finding is still a version match on the module. When the advisory lists import paths and none of them appear in the project's `.go` files, the finding stays and carries the note `imported package not seen`.
 
-## What a finding means today
+This is the check for the 2026-10-28 smoke test, where GO-2026-5932 (`golang.org/x/crypto/openpgp`) was reported for a module that the project only imports as `golang.org/x/crypto/argon2`.
 
-`go.sum` supplies the module and version, for example `golang.org/x/crypto`. `affected_matches` in `crates/patchsense-core/src/osv.rs` compares that module name with `affected[].package.name` and the ecosystem `Go`. `advisory_from_json` keeps the id, aliases, summary, severity, references, and fixed versions. It does not keep `affected[].ecosystem_specific`.
+## What is stored
 
-The finding is a version match on the module. It is not evidence that the vulnerable package was imported.
+`advisory_from_json` reads `affected[].ecosystem_specific.imports` from entries whose package name and ecosystem match the installed module. Each item keeps:
 
-## What OSV already provides
+- `path`, the Go import path
+- `symbols`, when OSV sent them
 
-GO-2026-5932, fetched from `https://api.osv.dev/v1/vulns/GO-2026-5932` on 2026-10-28, looks like this:
+Paths are deduped. Symbols for the same path are merged. The list is empty for other ecosystems and for Go advisories that omit `imports`. The SQLite cache still stores the raw OSV document, so an older cache row parses without a schema change. An offline scan re-reads that JSON and runs the same check.
 
-- `affected[].package.name` is `golang.org/x/crypto`
-- `affected[].ecosystem_specific.imports` is a list of `{ "path": "..." }`
-- the paths are `golang.org/x/crypto/openpgp` and its subpackages (`packet`, `armor`, `clearsign`, `errors`, `elgamal`, `s2k`)
-- this advisory has no `symbols` list
+`symbols` are not matched. Searching call sites is a different check.
 
-The Go vulnerability database puts the imported package on `imports[].path`. `imports[].symbols`, when present, names functions or methods inside that package. The field sits on the affected entry, not on the advisory root. An entry with no `imports` list cannot be filtered this way, and the finding should stay a version match.
+## What is scanned
 
-## Check to build later
+For a Go finding whose advisory has a non-empty import list, PatchSense walks `.go` files under the scan root (the parent directory when the root is a lockfile). It collects:
 
-After a Go finding matches the module version:
+- `import "path"`
+- grouped `import (` blocks
+- aliases (`argon2 "golang.org/x/crypto/argon2"`), dot imports (`. "path"`), and blank imports (`_ "path"`)
+- imports in files that start with `//go:build` or `// +build`
 
-1. Read `imports[].path` from the affected entry that matched. If that list is missing or empty, leave the finding as it is.
-2. Read `.go` files under the scanned tree. Skip `vendor/`, `testdata/`, and the directories discovery already skips.
-3. Collect paths from single-line imports and from `import (` blocks. An alias such as `argon2 "golang.org/x/crypto/argon2"` still carries the path.
-4. If none of the advisory paths appear, add a note such as `imported package not seen`. Do not drop the finding. A later flag can hide those notes. Until then, version matches stay visible.
-5. Do not match `symbols`. Searching call sites is a different check and is much noisier.
+Build tags are not evaluated. A file that would be excluded by `GOOS` or `GOARCH` still counts, because the scan does not ask the `go` command which files are built.
 
-This is not reachability. It does not build a call graph, it does not apply build tags, and it does not ask the `go` command which files are part of the build. A file that is never compiled can still contain the import. A file generated during the build is invisible. That is enough to tell `openpgp` from `argon2`.
+Skipped by default, and configurable in `[scan.go_imports]`:
 
-## Effort
+| Key | Default | Effect |
+|---|---|---|
+| `skip_vendor` | `true` | skip a directory named `vendor` |
+| `skip_testdata` | `true` | skip a directory named `testdata` |
+| `skip_tests` | `true` | skip `*_test.go` |
 
-One change, about the size of a lockfile parser:
+`node_modules`, `target`, `.git`, `.venv`, and `venv` are always skipped. Directory symlinks are not followed.
 
-- Keep the import paths while `advisory_from_json` already holds the raw document. No new HTTP client.
-- A few hundred lines to scan `.go` files, plus a fixture module that imports `argon2` and a fixture advisory whose imports name `openpgp`.
-- No `go` toolchain, and no port of govulncheck.
+## Match rule
 
-Call-graph reachability (the build list, symbol matches, build tags) is a separate project and needs the `go` tool. Do not start it as part of this note.
+An advisory path matches an import when the two strings are equal, or when the import is that path plus a subpackage (`advisory_path + "/" + rest`).
+
+Importing `golang.org/x/crypto/openpgp/packet` matches an advisory path of `golang.org/x/crypto/openpgp`. Importing `golang.org/x/crypto` or `golang.org/x/crypto/argon2` does not. `golang.org/x/crypto/openpgp2` does not match `golang.org/x/crypto/openpgp`.
+
+## Note and score
+
+If no listed path matches, the finding is kept and `import_note` is `imported package not seen`. The score and the tier stay on the version-match formula (KEV, EPSS, CVSS, direct, fix). There is no downgrade.
+
+The note is the visible flag. A missing import is not proof the package is unused: tests and vendor trees are skipped, build tags are not applied, and files generated during the build are invisible. Lowering the score would also change `--fail-on` for a heuristic. When the advisory has no imports data, `import_note` is omitted and the report matches the previous output.
+
+The note is shown in:
+
+- the table advisory cell
+- JSON `findings[].import_note` (omitted when unset; see `schemas/report.v1.json`)
+- the SARIF result message
+- markdown, which is what GitHub pull-request and GitLab merge-request comments render
+- the GitLab Dependency Scanning description
+- `patchsense scan --explain`
+- MCP `scan_project` (markdown and JSON), `get_finding`, and `explain_score`
+
+## Out of scope
+
+Call-graph reachability, symbol matches, and asking `go` which files are part of the build are a separate project. This check does not drop findings.

@@ -365,6 +365,7 @@ Catatan skema:
 - `kev` berisi `null` atau `{ "date_added": "...", "due_date": "...", "ransomware": "Known|Unknown", "name": "..." }`.
 - `tier` memakai identifier Inggris (`critical`, `review`, `defer`); label Indonesia ada di `tier_label`.
 - `explain.status`: `not_requested`, `ok`, `no_agent_found`, `failed`, atau `timeout`. Bila `ok`, setiap temuan yang dijelaskan berisi `explanation: { "agent": "codex", "text": "...", "disclaimer": "Penjelasan AI, bisa keliru" }`.
+- A Go finding may include optional `import_note` with the value `imported package not seen`. The field is omitted when the advisory has no import paths or when one of those paths was imported. The score and tier are unchanged. See `docs/go-import-reachability.md`.
 - Perubahan yang tidak kompatibel wajib menaikkan `schema_version`. Sediakan juga JSON Schema di `schemas/report.v1.json`.
 
 ---
