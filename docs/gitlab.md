@@ -11,7 +11,7 @@ include:
   - local: templates/gitlab/patchsense.gitlab-ci.yml
 ```
 
-After a GitHub release exists, the same file can be included from the raw URL of that tag. The installer in `before_script` downloads `patchsense-installer.sh` from `Widyasa/patchsense` releases. That asset is not published yet, so a pipeline that reaches the install step will fail until Widya publishes a release. See the release checklist.
+After the v0.1.1 GitHub Release exists, the same file can be included from the raw URL of that tag. The installer in `before_script` downloads `patchsense-installer.sh` from `Widyasa/patchsense` releases. The crates.io 0.1.0 publish does not upload that asset, so a pipeline that reaches the install step fails until v0.1.1. See the release checklist.
 
 ## Variables
 

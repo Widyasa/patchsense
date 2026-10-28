@@ -10,18 +10,42 @@ Repository: [github.com/Widyasa/patchsense](https://github.com/Widyasa/patchsens
 
 ## Install
 
-Every package except `cargo install` runs a prebuilt binary. npm, Composer, Go, Homebrew, the shell installer, and Docker download it from the GitHub Release for the same version as the package (`0.1.0` downloads tag `v0.1.0`). pip installs a wheel that already contains the binary. None of those compile Rust on your machine. `cargo install` does.
+`0.1.0` is the crates.io release. Widya publishes it with `cargo publish` ([`docs/release-checklist.md`](docs/release-checklist.md)). There is no git tag and no GitHub Release for 0.1.0.
 
-Publishing is Widya's step ([`docs/release-checklist.md`](docs/release-checklist.md)). Until that release exists, Composer, Go, and Docker fail on first run and say release `v0.1.0` is not published yet. From a git checkout:
+### Available for 0.1.0
+
+```bash
+cargo install patchsense --locked
+```
+
+That compiles from crates.io. It needs Rust 1.99 (`rust-version` in `Cargo.toml`).
+
+From a git checkout, build the same binary without installing:
 
 ```bash
 cargo build --release -p patchsense
-PATCHSENSE_BINARY=$PWD/target/release/patchsense go run ./go/cmd/patchsense --version
+cargo run -p patchsense -- --version
 ```
 
-That prints `patchsense 0.1.0`. `cargo run -p patchsense -- --version` does the same without a launcher.
+`cargo run -p patchsense -- --version` prints `patchsense 0.1.0`.
 
-Release archives from cargo-dist cover:
+### Coming in v0.1.1
+
+npm, pip, Composer, Go, Homebrew, the shell installer, and Docker are not part of 0.1.0. They need GitHub Release binaries, or a PyPI wheel, and those are planned for v0.1.1 after GitHub Actions billing is fixed. The commands below are kept so that release has a known shape. They do not work today.
+
+| Channel | Command (coming in v0.1.1) | Notes |
+|---|---|---|
+| npm | `npm install --save-dev patchsense` then `npx patchsense scan .` | cargo-dist package. Also `pnpm add -D patchsense && pnpm exec patchsense scan .` and `yarn add -D patchsense && yarn patchsense scan .` |
+| pip | `pip install patchsense` or `pipx install patchsense` or `uv tool install patchsense` | Wheels from `pypi.yml`: Linux x64/arm64 (manylinux, glibc), macOS x64/arm64, Windows x64. Not Alpine |
+| Composer | `composer require --dev widyasa/patchsense` then `vendor/bin/patchsense scan .` | Root `composer.json`. First run downloads and checks sha256 |
+| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.0` | Same download and sha256 check. `@latest` tracks the newest tag. Before any tag, `@latest` is a pseudo-version and still looks for release `v0.1.0` |
+| Homebrew | `brew install Widyasa/tap/patchsense` | Formula is pushed to `Widyasa/homebrew-tap` by the release workflow |
+| shell | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.0/patchsense-installer.sh \| sh` | cargo-dist installer. Checks sha256 before unpacking |
+| Docker | `docker build -t patchsense .` then `docker run --rm -v "$PWD:/work" -w /work patchsense scan .` | Local image only. Alpine x64, so it uses the musl archive. The image is not pushed to a registry |
+
+Those commands still name `v0.1.0` because that is the version recorded in the launchers. Phase B bumps the version to 0.1.1 and retargets the tag. Do not run them for the crates.io release.
+
+cargo-dist archives for that later release cover:
 
 | Triple | Where it runs |
 |---|---|
@@ -34,26 +58,22 @@ Release archives from cargo-dist cover:
 
 There is no Linux arm64 musl archive and no Windows arm64 archive.
 
-| Ecosystem | After the v0.1.0 release | Notes |
-|---|---|---|
-| npm | `npm install --save-dev patchsense` then `npx patchsense scan .` | cargo-dist package. Also `pnpm add -D patchsense && pnpm exec patchsense scan .` and `yarn add -D patchsense && yarn patchsense scan .` |
-| pip | `pip install patchsense` or `pipx install patchsense` or `uv tool install patchsense` | Wheels from `pypi.yml`: Linux x64/arm64 (manylinux, glibc), macOS x64/arm64, Windows x64. Not Alpine |
-| Composer | `composer require --dev widyasa/patchsense` then `vendor/bin/patchsense scan .` | Root `composer.json`. First run downloads and checks sha256 |
-| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.0` | Same download and sha256 check. `@latest` tracks the newest tag. Before any tag, `@latest` is a pseudo-version and still looks for release `v0.1.0` |
-| Homebrew | `brew install Widyasa/tap/patchsense` | Formula is pushed to `Widyasa/homebrew-tap` by the release workflow |
-| shell | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.0/patchsense-installer.sh \| sh` | cargo-dist installer. Checks sha256 before unpacking |
-| Docker | `docker build -t patchsense .` then `docker run --rm -v "$PWD:/work" -w /work patchsense scan .` | Local image only. Alpine x64, so it uses the musl archive. Not published |
-| cargo | `cargo install patchsense --locked` | Compiles. Needs Rust 1.99 (`rust-version` in `Cargo.toml`) |
-
 Composer, Go, and `scripts/fetch-release.sh` (the Docker entrypoint) cache the binary under `~/.cache/patchsense` (`PATCHSENSE_CACHE_DIR` overrides it). A later run does not need the network. `curl` and PHP's curl extension honor `https_proxy` / `http_proxy`. The Go launcher uses Go's default proxy rules, which skip loopback addresses. The cargo-dist npm installer stores the binary inside the installed package and does not check sha256. The shell installer, Homebrew formula, Composer, Go, and Docker entrypoint do.
 
 `PATCHSENSE_TARGET` overrides target detection (`x86_64-unknown-linux-musl`, for example) when libc detection is wrong. It does not change the version.
 
-`PATCHSENSE_BINARY` skips the download for Composer, Go, and the Docker entrypoint. Set it to a `patchsense` binary you already built. An empty value is ignored. If the GitHub Release or its archive is missing, those three say release `v0.1.0` is not published yet and list `cargo install`, building from source (`cargo build --release -p patchsense`), and `PATCHSENSE_BINARY`.
+`PATCHSENSE_BINARY` skips the download for Composer, Go, and the Docker entrypoint. Set it to a `patchsense` binary you already built. An empty value is ignored. Until the v0.1.1 GitHub Release exists, those three say release `v0.1.0` is not published yet and list `cargo install`, building from source (`cargo build --release -p patchsense`), and `PATCHSENSE_BINARY`. From a checkout:
 
-`go install github.com/Widyasa/patchsense/go/cmd/patchsense@latest` before the first git tag installs a pseudo-version such as `v0.0.0-20261028141100-abcdefabcdef`. That names a commit, not a release. The launcher still requests GitHub Release `v0.1.0`, the version recorded in the source, and explains the pseudo-version when that release is missing. After the tag exists, `@latest` and `@v0.1.0` are that release.
+```bash
+cargo build --release -p patchsense
+PATCHSENSE_BINARY=$PWD/target/release/patchsense go run ./go/cmd/patchsense --version
+```
 
-The pip wheel does not download a release, so it has no 404 path and does not read `PATCHSENSE_BINARY`. The npm package is generated by cargo-dist when the release is published. It is not stored in this repository, and that generated installer does not read `PATCHSENSE_BINARY` either. Until the release exists, use cargo or `PATCHSENSE_BINARY` with Composer, Go, or Docker.
+That prints `patchsense 0.1.0`.
+
+`go install github.com/Widyasa/patchsense/go/cmd/patchsense@latest` before the first git tag installs a pseudo-version such as `v0.0.0-20261028141100-abcdefabcdef`. That names a commit, not a release. The launcher still requests GitHub Release `v0.1.0`, the version recorded in the source, and explains the pseudo-version when that release is missing. The 0.1.0 crates.io publish does not create that tag. `@latest` and `@v0.1.0` match a release only after Phase B tags v0.1.1 and bumps the version constant.
+
+The pip wheel does not download a release, so it has no 404 path and does not read `PATCHSENSE_BINARY`. The npm package is generated by cargo-dist when the v0.1.1 release is published. It is not stored in this repository, and that generated installer does not read `PATCHSENSE_BINARY` either. Until v0.1.1, use `cargo install` or `PATCHSENSE_BINARY` with Composer, Go, or Docker.
 
 ## Quick start
 
@@ -89,7 +109,7 @@ Default tiers: **Critical** at 70 and above, **Review** at 40 and above, otherwi
 
 ## GitHub Actions
 
-Before a release, build the binary and pass `binary-path` (see [`.github/workflows/self-test.yml`](.github/workflows/self-test.yml)):
+The composite action's default path downloads a GitHub Release installer. That installer is coming in v0.1.1, not with the crates.io 0.1.0 publish. Until then, build the binary and pass `binary-path` (see [`.github/workflows/self-test.yml`](.github/workflows/self-test.yml)):
 
 ```yaml
 - uses: actions/checkout@v4
@@ -102,7 +122,7 @@ Before a release, build the binary and pass `binary-path` (see [`.github/workflo
     binary-path: target/release/patchsense
 ```
 
-After `v0.1.0` is released, the composite action installs the published binary. That `uses:` line depends on the release:
+After v0.1.1 is released, the composite action installs the published binary. The `v0` tag is created then, not during the crates.io publish. That `uses:` line depends on the release:
 
 ```yaml
 - uses: Widyasa/patchsense@v0
@@ -113,7 +133,7 @@ After `v0.1.0` is released, the composite action installs the published binary. 
 
 ## GitLab CI
 
-Copy [`templates/gitlab/patchsense.gitlab-ci.yml`](templates/gitlab/patchsense.gitlab-ci.yml) or include it. The installer URL in that template depends on a GitHub Release. Details: [`docs/gitlab.md`](docs/gitlab.md).
+Copy [`templates/gitlab/patchsense.gitlab-ci.yml`](templates/gitlab/patchsense.gitlab-ci.yml) or include it. The installer URL in that template depends on a GitHub Release, which is coming in v0.1.1. A pipeline that reaches the install step fails until that release exists. Details: [`docs/gitlab.md`](docs/gitlab.md).
 
 ```yaml
 include:
