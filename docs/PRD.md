@@ -195,7 +195,7 @@ Commands:
 | `--no-dev` | false | Abaikan dev dependency bila parser tahu |
 | `--min-score <N>` | 0 | Sembunyikan temuan di bawah skor N dari output (tidak memengaruhi `--fail-on`) |
 | `--offline` | false | Hanya cache, tanpa jaringan |
-| `--strict-cache` | false | Bersama `--offline`, exit 2 bila baris EPSS atau katalog KEV melewati TTL. Tanpa flag, data kedaluwarsa tetap dipakai dan ada peringatan |
+| `--strict-cache` | false | Bersama `--offline`, exit 2 bila baris EPSS atau katalog KEV hilang atau melewati TTL. Tanpa flag, data kedaluwarsa tetap dipakai dan ada peringatan. `strict_cache = true` di config memakai pesan yang sama |
 | `--no-cache` | false | Abaikan cache |
 | `--cache-dir <DIR>` | OS cache | |
 | `--explain` | false | Minta penjelasan dari CLI agent terpasang |

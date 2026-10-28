@@ -37,6 +37,8 @@ Replace `YYYY-MM-DD` with the day `cargo publish` runs. See [`docs/release-check
 
 ### Fixed
 
+- An offline OSV query or advisory that is past its TTL is reported as expired, with its age and the TTL. `--strict-cache` also exits 2 when an EPSS row or the KEV catalog was never cached. Stale-cache warnings are included in the Markdown report and in PR and MR comments. A strict error that comes from config says to set `[cache] strict_cache = false` (#139).
+- A TTL that is not a whole number of hours names the key in the error sentence, for example `ttl_hours_osv must be a whole number of hours` (#139).
 - `[cache] ttl_hours_osv`, `ttl_hours_epss`, and `ttl_hours_kev` set the cache lifetime. The default is still 24 hours. A value that is not a whole number of hours is a config error that names the key (#137).
 - `--offline` keeps using an expired EPSS row or KEV catalog and warns with its age, so the score does not drop. `--strict-cache` and `[cache] strict_cache` exit 2 when one of those rows is expired (#137).
 - EPSS probability and percentile are shown to four decimal places in the table, markdown, and `explain_score` (#137).

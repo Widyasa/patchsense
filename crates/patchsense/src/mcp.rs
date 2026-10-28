@@ -227,6 +227,8 @@ async fn scan_project_at(
         ttl_epss: loaded.config.cache.epss_ttl(),
         ttl_kev: loaded.config.cache.kev_ttl(),
         strict_cache: loaded.config.cache.strict_cache,
+        strict_cache_flag: false,
+        strict_cache_config: loaded.config.cache.strict_cache,
     };
     let client = ReqwestClient::new().map_err(|err| err.to_string())?;
     scan_with(&client, &osv_base_url(), path, &options)

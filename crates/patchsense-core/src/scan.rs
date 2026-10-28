@@ -10,16 +10,17 @@
 //! `--keep-going` (the default) turns a bad lockfile into a warning unless
 //! every lockfile failed. Packages are deduped on ecosystem, name, and version
 //! before the OSV query. `--ecosystem` and `--no-dev` drop packages first.
-//! `--offline` reads OSV, EPSS, and KEV from the cache. A missing or expired
-//! OSV query or advisory is an error. A missing EPSS or KEV row is a warning.
-//! An expired EPSS or KEV row is still used, with a warning that names its
-//! age, unless `strict_cache` is set.
+//! `--offline` reads OSV, EPSS, and KEV from the cache. A missing OSV query
+//! or advisory is an error. An expired one is an error that names the age
+//! and the TTL. A missing EPSS or KEV row is a warning, and an expired row
+//! is still used, with a warning that names its age. `strict_cache` makes a
+//! missing or expired EPSS row or KEV catalog an error too.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::cache::{Cache, DEFAULT_TTL};
+use crate::cache::{self, Cache, DEFAULT_TTL};
 use crate::config::{FailOn, IgnoreRule, ScoreSection};
 use crate::discovery::discover_report;
 use crate::enrich::epss::{self, DEFAULT_EPSS_URL};
@@ -82,8 +83,12 @@ pub struct ScanOptions {
     pub ttl_epss: Duration,
     /// How long a cached KEV catalog stays fresh.
     pub ttl_kev: Duration,
-    /// `--offline` fails when an EPSS row or the KEV catalog is expired.
+    /// `--offline` fails when an EPSS row or the KEV catalog is missing or expired.
     pub strict_cache: bool,
+    /// `--strict-cache` was passed. The error tells the user to omit it.
+    pub strict_cache_flag: bool,
+    /// `[cache] strict_cache` is true. The error names that key.
+    pub strict_cache_config: bool,
 }
 
 impl Default for ScanOptions {
@@ -108,6 +113,8 @@ impl Default for ScanOptions {
             ttl_epss: DEFAULT_TTL,
             ttl_kev: DEFAULT_TTL,
             strict_cache: false,
+            strict_cache_flag: false,
+            strict_cache_config: false,
         }
     }
 }
@@ -480,7 +487,8 @@ where
     let mut epss = BTreeMap::new();
     let mut missing_epss = Vec::new();
     let mut stale_epss = Vec::new();
-    let mut strict_notes = Vec::new();
+    let mut stale_notes = Vec::new();
+    let mut missing_epss_strict = Vec::new();
     if let Some(cache) = cache {
         for cve in cves {
             if let Some(entry) = cache.get_epss(cve, now, options.ttl_epss)? {
@@ -488,12 +496,12 @@ where
                 continue;
             }
             if let Some(entry) = cache.get_epss_stored(cve)? {
-                let age = now.saturating_sub(entry.fetched_at).max(0);
+                let age = cache::row_age(entry.fetched_at, now);
                 if options.offline && options.strict_cache {
-                    strict_notes.push(format!(
+                    stale_notes.push(format!(
                         "EPSS for {cve} is {} old, past the {} TTL",
-                        format_span(age),
-                        format_span(secs(options.ttl_epss))
+                        cache::format_span(age),
+                        cache::format_ttl(options.ttl_epss)
                     ));
                 } else if options.offline {
                     stale_epss.push((cve.clone(), age));
@@ -503,25 +511,32 @@ where
                 }
                 continue;
             }
-            missing_epss.push(cve.clone());
+            if options.offline && options.strict_cache {
+                missing_epss_strict.push(cve.clone());
+            } else {
+                missing_epss.push(cve.clone());
+            }
         }
+    } else if options.offline && options.strict_cache {
+        missing_epss_strict.extend(cves.iter().cloned());
     } else {
         missing_epss = cves.to_vec();
     }
 
+    let mut missing_kev_strict = false;
     let (kev, kev_catalog_version, kev_from_cache) = if let Some(cache) = cache {
         if let Some(entry) = cache.get_kev(now, options.ttl_kev)? {
             let catalog = kev::parse_kev_catalog(&entry.json)?;
             let version = catalog.catalog_version.clone();
             (catalog.by_cve, Some(version), true)
         } else if let Some(entry) = cache.get_kev_stored()? {
-            let age = now.saturating_sub(entry.fetched_at).max(0);
+            let age = cache::row_age(entry.fetched_at, now);
             if options.offline && options.strict_cache {
-                strict_notes.push(format!(
+                stale_notes.push(format!(
                     "KEV catalog {} is {} old, past the {} TTL",
                     entry.catalog_version,
-                    format_span(age),
-                    format_span(secs(options.ttl_kev))
+                    cache::format_span(age),
+                    cache::format_ttl(options.ttl_kev)
                 ));
                 (BTreeMap::new(), None, false)
             } else if options.offline {
@@ -529,8 +544,8 @@ where
                 warnings.push(format!(
                     "offline: cached KEV catalog {} is {} old, past the {} TTL; using the stale catalog",
                     catalog.catalog_version,
-                    format_span(age),
-                    format_span(secs(options.ttl_kev))
+                    cache::format_span(age),
+                    cache::format_ttl(options.ttl_kev)
                 ));
                 let version = catalog.catalog_version.clone();
                 (catalog.by_cve, Some(version), true)
@@ -546,6 +561,9 @@ where
                 let version = catalog.catalog_version.clone();
                 (catalog.by_cve, Some(version), false)
             }
+        } else if options.offline && options.strict_cache {
+            missing_kev_strict = true;
+            (BTreeMap::new(), None, false)
         } else if options.offline {
             warnings.push(
                 "offline: the KEV catalog is not in the cache; KEV counts as absent".to_string(),
@@ -563,6 +581,9 @@ where
             let version = catalog.catalog_version.clone();
             (catalog.by_cve, Some(version), false)
         }
+    } else if options.offline && options.strict_cache {
+        missing_kev_strict = true;
+        (BTreeMap::new(), None, false)
     } else if options.offline {
         warnings
             .push("offline: the KEV catalog is not in the cache; KEV counts as absent".to_string());
@@ -574,12 +595,41 @@ where
         (catalog.by_cve, Some(version), false)
     };
 
-    if !strict_notes.is_empty() {
+    let mut missing_strict = Vec::new();
+    if !missing_epss_strict.is_empty() {
+        missing_strict.push(format!(
+            "EPSS has no cached row for {} CVE(s), including {}",
+            missing_epss_strict.len(),
+            missing_epss_strict[0]
+        ));
+    }
+    if missing_kev_strict {
+        missing_strict.push("the KEV catalog is not in the cache".to_string());
+    }
+    if !stale_notes.is_empty() || !missing_strict.is_empty() {
+        let mut parts = Vec::new();
+        if !stale_notes.is_empty() {
+            parts.push(format!(
+                "offline cache is stale: {}",
+                stale_notes.join("; ")
+            ));
+        }
+        if !missing_strict.is_empty() {
+            parts.push(format!(
+                "offline cache is missing: {}",
+                missing_strict.join("; ")
+            ));
+        }
+        let relief = if !stale_notes.is_empty() {
+            format!(
+                " Run without --offline to refresh, or {}.",
+                strict_relief(options)
+            )
+        } else {
+            " Run a scan without --offline to fill the cache.".to_string()
+        };
         return Err(CoreError::OfflineCache {
-            message: format!(
-                "offline cache is stale: {}. Run without --offline to refresh, or omit --strict-cache to use the stale rows",
-                strict_notes.join("; ")
-            ),
+            message: format!("{}{relief}", parts.join(". ")),
         });
     }
     if !stale_epss.is_empty() {
@@ -588,15 +638,15 @@ where
         let note = if stale_epss.len() == 1 {
             format!(
                 "offline: cached EPSS for {cve} is {} old, past the {} TTL; using the stale score",
-                format_span(*age),
-                format_span(secs(options.ttl_epss))
+                cache::format_span(*age),
+                cache::format_ttl(options.ttl_epss)
             )
         } else {
             format!(
                 "offline: cached EPSS for {} CVEs is stale (oldest {cve} is {} old, TTL {}); using the stale scores",
                 stale_epss.len(),
-                format_span(*age),
-                format_span(secs(options.ttl_epss))
+                cache::format_span(*age),
+                cache::format_ttl(options.ttl_epss)
             )
         };
         warnings.push(note);
@@ -632,22 +682,13 @@ where
     ))
 }
 
-fn secs(ttl: Duration) -> i64 {
-    i64::try_from(ttl.as_secs()).unwrap_or(i64::MAX)
-}
-
-fn format_span(seconds: i64) -> String {
-    let seconds = seconds.max(0);
-    let hours = seconds / 3_600;
-    let minutes = (seconds % 3_600) / 60;
-    if hours > 0 && minutes > 0 {
-        format!("{hours}h {minutes}m")
-    } else if hours > 0 {
-        format!("{hours}h")
-    } else if minutes > 0 {
-        format!("{minutes}m")
-    } else {
-        format!("{seconds}s")
+fn strict_relief(options: &ScanOptions) -> &'static str {
+    match (options.strict_cache_config, options.strict_cache_flag) {
+        (true, true) => {
+            "omit --strict-cache and set `[cache] strict_cache = false` to use the stale rows"
+        }
+        (true, false) => "set `[cache] strict_cache = false` to use the stale rows",
+        (false, _) => "omit --strict-cache to use the stale rows",
     }
 }
 
@@ -784,6 +825,7 @@ where
     let mut origin = FetchOrigin::default();
     let mut misses = Vec::new();
     let mut missing = Vec::new();
+    let mut expired: Vec<(String, i64)> = Vec::new();
     for (index, package) in packages.iter().enumerate() {
         if let Some(cache) = cache {
             if let Some(hit) = cached_query(cache, package, now, options.ttl_osv)? {
@@ -793,23 +835,63 @@ where
             }
         }
         if options.offline {
-            missing.push(format!(
+            let label = format!(
                 "{} {}@{}",
                 package.ecosystem.as_osv_str(),
                 package.name,
                 package.version
-            ));
+            );
+            let stored = match cache {
+                Some(store) => store.osv_query_fetched_at(
+                    package.ecosystem.as_osv_str(),
+                    &package.name,
+                    &package.version,
+                )?,
+                None => None,
+            };
+            match stored {
+                Some(at) if !cache::fresh(at, now, options.ttl_osv) => {
+                    expired.push((label, cache::row_age(at, now)));
+                }
+                _ => missing.push(label),
+            }
         } else {
             misses.push(index);
         }
     }
-    if !missing.is_empty() {
-        return Err(CoreError::OfflineCache {
-            message: format!(
-                "offline cache is missing OSV results for {} package(s), including {}. Run a scan without --offline to fill the cache",
+    if !expired.is_empty() || !missing.is_empty() {
+        let mut parts = Vec::new();
+        if !expired.is_empty() {
+            expired.sort_by_key(|(_, age)| std::cmp::Reverse(*age));
+            let ttl = cache::format_ttl(options.ttl_osv);
+            let (label, age) = &expired[0];
+            if expired.len() == 1 {
+                parts.push(format!(
+                    "offline cache expired: OSV results for {label} are {} old, past the {ttl} TTL",
+                    cache::format_span(*age)
+                ));
+            } else {
+                parts.push(format!(
+                    "offline cache expired: OSV results for {} packages are past the {ttl} TTL (oldest {label} is {} old)",
+                    expired.len(),
+                    cache::format_span(*age)
+                ));
+            }
+        }
+        if !missing.is_empty() {
+            parts.push(format!(
+                "offline cache is missing OSV results for {} package(s), including {}",
                 missing.len(),
                 missing[0]
-            ),
+            ));
+        }
+        let action = if missing.is_empty() {
+            "Run a scan without --offline to refresh the cache"
+        } else {
+            "Run a scan without --offline to fill the cache"
+        };
+        return Err(CoreError::OfflineCache {
+            message: format!("{}. {action}", parts.join(". ")),
         });
     }
     if !misses.is_empty() {
@@ -1464,8 +1546,48 @@ mod tests {
         .await
         .expect_err("expired osv");
         let message = err.to_string();
-        assert!(message.contains("offline cache"), "{message}");
+        assert!(message.contains("offline cache expired"), "{message}");
         assert!(message.contains("lodash@4.17.14"), "{message}");
+        assert!(message.contains("2h old"), "{message}");
+        assert!(message.contains("1h TTL"), "{message}");
+        assert!(!message.contains("missing"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn expired_advisory_names_the_age_and_the_ttl() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+        )
+        .expect("lock");
+        let mut options = lodash_options(dir.path(), 1_700_000_000);
+        scan_with(&fake_osv(), "https://api.osv.dev", dir.path(), &options)
+            .await
+            .expect("warm");
+        let conn = rusqlite::Connection::open(dir.path().join("cache.db")).expect("cache");
+        conn.execute("UPDATE osv_vuln SET fetched_at = fetched_at - 7200", [])
+            .expect("age advisory");
+        options.offline = true;
+        options.ttl_osv = Duration::from_secs(3_600);
+        options.now = Some(1_700_000_060);
+        let err = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &options,
+        )
+        .await
+        .expect_err("expired advisory");
+        let message = err.to_string();
+        assert!(message.contains("offline cache expired"), "{message}");
+        assert!(
+            message.contains("advisory GHSA-35jh-r3h4-6jhm"),
+            "{message}"
+        );
+        assert!(message.contains("2h"), "{message}");
+        assert!(message.contains("1h TTL"), "{message}");
+        assert!(!message.contains("missing"), "{message}");
     }
 
     #[tokio::test]
@@ -1556,6 +1678,114 @@ mod tests {
         assert!(message.contains("KEV"), "{message}");
         assert!(message.contains("EPSS"), "{message}");
         assert!(message.contains("2h old"), "{message}");
+        assert!(message.contains("omit --strict-cache"), "{message}");
+        let markdown = crate::report::render_markdown(&second, 20);
+        assert!(markdown.contains("## Warnings"), "{markdown}");
+        assert!(markdown.contains("using the stale catalog"), "{markdown}");
+
+        offline.strict_cache_flag = false;
+        offline.strict_cache_config = true;
+        let err = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &offline,
+        )
+        .await
+        .expect_err("strict from config");
+        let message = err.to_string();
+        assert!(
+            message.contains("set `[cache] strict_cache = false`"),
+            "{message}"
+        );
+        assert!(!message.contains("omit --strict-cache"), "{message}");
+
+        offline.strict_cache_flag = true;
+        let err = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &offline,
+        )
+        .await
+        .expect_err("strict from both");
+        let message = err.to_string();
+        assert!(message.contains("omit --strict-cache"), "{message}");
+        assert!(message.contains("strict_cache = false"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn strict_cache_rejects_a_missing_epss_row_and_kev_catalog() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+        )
+        .expect("lock");
+        let advisory = lodash_advisory();
+        let http = FakeHttp::with_handler(move |request: &RecordedRequest| {
+            if request.method == "POST" && request.url.ends_with("/v1/querybatch") {
+                return HttpResponse {
+                    status: 200,
+                    body: json!({"results":[{"vulns":[{
+                        "id": "GHSA-35jh-r3h4-6jhm",
+                        "modified": "2024-01-01T00:00:00Z"
+                    }]}]})
+                    .to_string(),
+                };
+            }
+            if request.url.contains("/v1/vulns/") {
+                return HttpResponse {
+                    status: 200,
+                    body: advisory.clone(),
+                };
+            }
+            if request.url.contains("/data/v1/epss") {
+                return HttpResponse {
+                    status: 200,
+                    body: r#"{"data":[{"cve":"CVE-2021-23337","epss":"0.21333","percentile":"0.95","date":"2026-10-24"}]}"#.to_string(),
+                };
+            }
+            if request.url.contains("known_exploited") {
+                return HttpResponse {
+                    status: 200,
+                    body: r#"{"catalogVersion":"2026.10.24","vulnerabilities":[{"cveID":"CVE-2021-23337","dateAdded":"2026-01-01","dueDate":"2026-02-01","knownRansomwareCampaignUse":"Unknown","vulnerabilityName":"lodash","requiredAction":"apply updates"}]}"#.to_string(),
+                };
+            }
+            HttpResponse {
+                status: 500,
+                body: format!("unexpected {}", request.url),
+            }
+        });
+        let mut online = lodash_options(dir.path(), 1_700_000_000);
+        online.enrich = true;
+        scan_with(&http, "https://api.osv.dev", dir.path(), &online)
+            .await
+            .expect("online");
+        let conn = rusqlite::Connection::open(dir.path().join("cache.db")).expect("cache");
+        conn.execute_batch("DELETE FROM epss; DELETE FROM kev;")
+            .expect("drop enrichment");
+        let mut offline = online.clone();
+        offline.offline = true;
+        offline.strict_cache = true;
+        offline.strict_cache_flag = true;
+        let err = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &offline,
+        )
+        .await
+        .expect_err("strict missing");
+        let message = err.to_string();
+        assert!(message.contains("offline cache is missing"), "{message}");
+        assert!(message.contains("EPSS"), "{message}");
+        assert!(message.contains("CVE-2021-23337"), "{message}");
+        assert!(
+            message.contains("KEV catalog is not in the cache"),
+            "{message}"
+        );
+        assert!(message.contains("fill the cache"), "{message}");
     }
 
     #[tokio::test]

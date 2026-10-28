@@ -453,11 +453,9 @@ fn ttl_that_is_not_a_number_names_the_key_and_exits_2() {
         .arg(&config)
         .arg(dir.path())
         .env("NO_COLOR", "1");
-    command
-        .assert()
-        .code(2)
-        .stderr(predicate::str::contains("ttl_hours_osv"))
-        .stderr(predicate::str::contains("whole number of hours"));
+    command.assert().code(2).stderr(predicate::str::contains(
+        "ttl_hours_osv must be a whole number of hours",
+    ));
 }
 
 #[tokio::test]
@@ -503,17 +501,15 @@ async fn offline_one_hour_ttl_exits_2_when_the_cache_is_two_hours_old() {
     enrichment_env(&mut warm, &server);
     warm.assert().success();
 
-    let status = std::process::Command::new("sqlite3")
-        .arg(cache.join("cache.db"))
-        .arg(
-            "UPDATE osv_vuln SET fetched_at = fetched_at - 7200; \
-             UPDATE osv_query SET fetched_at = fetched_at - 7200; \
-             UPDATE epss SET fetched_at = fetched_at - 7200; \
-             UPDATE kev SET fetched_at = fetched_at - 7200;",
-        )
-        .status()
-        .expect("sqlite3");
-    assert!(status.success(), "sqlite3 update failed");
+    let db = rusqlite::Connection::open(cache.join("cache.db")).expect("cache.db");
+    for sql in [
+        "UPDATE osv_vuln SET fetched_at = fetched_at - ?1",
+        "UPDATE osv_query SET fetched_at = fetched_at - ?1",
+        "UPDATE epss SET fetched_at = fetched_at - ?1",
+        "UPDATE kev SET fetched_at = fetched_at - ?1",
+    ] {
+        db.execute(sql, [7_200_i64]).expect(sql);
+    }
 
     let mut offline = Command::cargo_bin("patchsense").expect("binary");
     offline
@@ -531,5 +527,7 @@ async fn offline_one_hour_ttl_exits_2_when_the_cache_is_two_hours_old() {
     offline
         .assert()
         .code(2)
-        .stderr(predicate::str::contains("offline cache"));
+        .stderr(predicate::str::contains("offline cache expired"))
+        .stderr(predicate::str::contains("2h old"))
+        .stderr(predicate::str::contains("1h TTL"));
 }
