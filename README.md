@@ -10,22 +10,43 @@ Repository: [github.com/Widyasa/patchsense](https://github.com/Widyasa/patchsens
 
 ## Install
 
-Four release channels are prepared. The publish steps themselves are for Widya ([`docs/release-checklist.md`](docs/release-checklist.md)). Until `v0.1.0` is tagged, build from source.
+Every package except `cargo install` runs a prebuilt binary. npm, Composer, Go, Homebrew, the shell installer, and Docker download it from the GitHub Release for the same version as the package (`0.1.0` downloads tag `v0.1.0`). pip installs a wheel that already contains the binary. None of those compile Rust on your machine. `cargo install` does.
 
-| Channel | After the v0.1.0 release | Works today |
-|---|---|---|
-| cargo | `cargo install patchsense --locked` | `cargo install --path crates/patchsense --locked` |
-| npm | `npx patchsense scan .` | Needs the GitHub Release from cargo-dist |
-| pip | `pip install patchsense` | `maturin build --release` then `pip install` the wheel |
-| Homebrew | `brew install Widyasa/tap/patchsense` | Needs the `Widyasa/homebrew-tap` formula |
-
-From a git checkout:
+Publishing is Widya's step ([`docs/release-checklist.md`](docs/release-checklist.md)). Until that release exists, the downloaders fail on first run. From a git checkout:
 
 ```bash
 cargo run -p patchsense -- --version
 ```
 
 That prints `patchsense 0.1.0`.
+
+Release archives from cargo-dist cover:
+
+| Triple | Where it runs |
+|---|---|
+| `x86_64-unknown-linux-gnu` | Linux x64, glibc |
+| `x86_64-unknown-linux-musl` | Linux x64, musl (Alpine) |
+| `aarch64-unknown-linux-gnu` | Linux arm64, glibc |
+| `x86_64-apple-darwin` | macOS x64 |
+| `aarch64-apple-darwin` | macOS arm64 |
+| `x86_64-pc-windows-msvc` | Windows x64 |
+
+There is no Linux arm64 musl archive and no Windows arm64 archive.
+
+| Ecosystem | After the v0.1.0 release | Notes |
+|---|---|---|
+| npm | `npm install --save-dev patchsense` then `npx patchsense scan .` | cargo-dist package. Also `pnpm add -D patchsense && pnpm exec patchsense scan .` and `yarn add -D patchsense && yarn patchsense scan .` |
+| pip | `pip install patchsense` or `pipx install patchsense` or `uv tool install patchsense` | Wheels from `pypi.yml`: Linux x64/arm64 (manylinux, glibc), macOS x64/arm64, Windows x64. Not Alpine |
+| Composer | `composer require --dev widyasa/patchsense` then `vendor/bin/patchsense scan .` | Root `composer.json`. First run downloads and checks sha256 |
+| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.0` | Same download and sha256 check. `@latest` tracks the newest tag |
+| Homebrew | `brew install Widyasa/tap/patchsense` | Formula is pushed to `Widyasa/homebrew-tap` by the release workflow |
+| shell | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.0/patchsense-installer.sh \| sh` | cargo-dist installer. Checks sha256 before unpacking |
+| Docker | `docker build -t patchsense .` then `docker run --rm -v "$PWD:/work" -w /work patchsense scan .` | Local image only. Alpine x64, so it uses the musl archive. Not published |
+| cargo | `cargo install patchsense --locked` | Compiles. Needs Rust 1.99 (`rust-version` in `Cargo.toml`) |
+
+Composer, Go, and `scripts/fetch-release.sh` (the Docker entrypoint) cache the binary under `~/.cache/patchsense` (`PATCHSENSE_CACHE_DIR` overrides it). A later run does not need the network. `curl` and PHP's curl extension honor `https_proxy` / `http_proxy`. The Go launcher uses Go's default proxy rules, which skip loopback addresses. The cargo-dist npm installer stores the binary inside the installed package and does not check sha256. The shell installer, Homebrew formula, Composer, Go, and Docker entrypoint do.
+
+`PATCHSENSE_TARGET` overrides target detection (`x86_64-unknown-linux-musl`, for example) when libc detection is wrong. It does not change the version.
 
 ## Quick start
 

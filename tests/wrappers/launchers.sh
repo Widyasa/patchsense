@@ -9,8 +9,14 @@ cd "$root"
 cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 php_version=$(sed -n "s/^const PATCHSENSE_VERSION = '\\(.*\\)';/\\1/p" bin/patchsense)
 composer_version=$(php -r 'echo json_decode(file_get_contents("composer.json"), true)["version"];')
-if [ "$cargo_version" != "0.1.0" ] || [ "$php_version" != "$cargo_version" ] || [ "$composer_version" != "$cargo_version" ]; then
-  echo "version pin mismatch cargo=$cargo_version php=$php_version composer=$composer_version" >&2
+shell_version=$(sed -n 's/^version=//p' scripts/fetch-release.sh)
+go_version=$(sed -n 's/^const patchsenseVersion = "\(.*\)"$/\1/p' go/cmd/patchsense/main.go)
+if [ "$cargo_version" != "0.1.0" ] \
+  || [ "$php_version" != "$cargo_version" ] \
+  || [ "$composer_version" != "$cargo_version" ] \
+  || [ "$shell_version" != "$cargo_version" ] \
+  || [ "$go_version" != "$cargo_version" ]; then
+  echo "version pin mismatch cargo=$cargo_version php=$php_version composer=$composer_version shell=$shell_version go=$go_version" >&2
   exit 1
 fi
 
@@ -111,6 +117,21 @@ if [ "$out" != "fake-patchsense 0.1.0" ]; then
   exit 1
 fi
 
+shell_cache=$(mktemp -d)
+out=$(PATCHSENSE_CACHE_DIR="$shell_cache" "$root/scripts/fetch-release.sh" --version)
+if [ "$out" != "fake-patchsense 0.1.0" ]; then
+  echo "shell launcher version: $out" >&2
+  exit 1
+fi
+set +e
+PATCHSENSE_CACHE_DIR="$shell_cache" "$root/scripts/fetch-release.sh" --exit 3
+shell_code=$?
+set -e
+if [ "$shell_code" -ne 3 ]; then
+  echo "shell exit code was $shell_code, want 3" >&2
+  exit 1
+fi
+
 args_out=$(php "$root/bin/patchsense" hello "two words")
 if [ "$args_out" != "args:hello two words" ]; then
   echo "unexpected args: $args_out" >&2
@@ -175,6 +196,19 @@ if find "$bad_cache" -type f -name patchsense | grep -q .; then
   echo "bad checksum left a cached binary" >&2
   exit 1
 fi
+shell_bad=$(mktemp -d)
+set +e
+shell_bad_err=$(PATCHSENSE_CACHE_DIR="$shell_bad" "$root/scripts/fetch-release.sh" --version 2>&1)
+shell_bad_code=$?
+set -e
+if [ "$shell_bad_code" -eq 0 ]; then
+  echo "shell launcher accepted a bad checksum" >&2
+  exit 1
+fi
+echo "$shell_bad_err" | grep -q "checksum mismatch" || {
+  echo "shell checksum error: $shell_bad_err" >&2
+  exit 1
+}
 
 if [ -x "$root/target/release/patchsense" ]; then
   pack_binary "$root/target/release/patchsense"

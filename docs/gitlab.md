@@ -21,7 +21,7 @@ After a GitHub release exists, the same file can be included from the raw URL of
 | `CI_API_V4_URL` | Provided by GitLab | Used by `patchsense comment`. |
 | `CI_PROJECT_ID` | Provided by GitLab | Used by `patchsense comment`. |
 | `CI_MERGE_REQUEST_IID` | On merge request pipelines | Used by `patchsense comment`. |
-| `PATCHSENSE_VERSION` | No | `latest` or a version such as `0.1.0` (the template adds the `v` prefix). |
+| `PATCHSENSE_VERSION` | No | `latest`, `0.1.0`, or `v0.1.0`. A value without `v` gets that prefix. A value that already starts with `v` is used as the tag. |
 | `PATCHSENSE_FAIL_ON` | No | `critical` (default), `review`, `any`, `never`, or a score 0–100. |
 | `PATCHSENSE_PATH` | No | Directory or lockfile. Default `.`. |
 

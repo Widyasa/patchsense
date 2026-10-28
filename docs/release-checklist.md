@@ -79,15 +79,38 @@ On later 0.1.x releases, move `v0` to the new commit (`git tag -f -a v0 -m "patc
 
 `v0.1.0-rc.1` makes cargo-dist build every target and open a GitHub prerelease. The npm and Homebrew jobs skip prereleases. `pypi.yml` publishes **every** tag that starts with `v`, including `v0.1.0-rc.1`. Do not push an rc tag unless a PyPI pre-release is intended.
 
-Local checks that already ran, and that do not need a tag: `dist plan`, `dist build --target x86_64-unknown-linux-gnu`, and `maturin build --release` followed by `pip install` of that wheel.
+Local checks that already ran, and that do not need a tag: `dist plan`, `dist build --target x86_64-unknown-linux-gnu`, and `maturin build --release` followed by `pip install` of that wheel. `pypi.yml` is valid (`actionlint` clean). Publish still runs only for tags whose names start with `v`.
 
-## 7. Confirm the installs
+## 7. Packagist and the Go module
 
-After the Release and PyPI workflows succeed:
+Do this after the `v0.1.0` GitHub Release has `dist-manifest.json` and the archives. `composer require` and `go install` can succeed before that, but the first run of the launcher downloads the archive and fails if it is missing.
+
+Packagist:
+
+1. Sign in to packagist.org as the GitHub user `Widyasa`.
+2. Submit `https://github.com/Widyasa/patchsense`. `composer.json` is at the repository root. The package name is `widyasa/patchsense`.
+3. Enable the Packagist GitHub webhook so later tags update the package. Do not commit a token.
+4. Packagist versions come from git tags. The `"version"` field in `composer.json` is for path installs and is ignored by Packagist. `bin/patchsense` constant `PATCHSENSE_VERSION` must stay `0.1.0` for tag `v0.1.0`.
+
+Go:
+
+There is no separate Go registry to create. The module path is `github.com/Widyasa/patchsense`, so tag `v0.1.0` is the module version (`go/cmd/patchsense`, constant `patchsenseVersion`). The first `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.0` makes proxy.golang.org fetch that tag. The launcher then downloads the release binary. No extra `go/v0.1.0` tag.
+
+Docker:
+
+There is no image publish step. Users build [`Dockerfile`](../Dockerfile) themselves. Do not push to Docker Hub or GHCR as part of this release.
+
+## 8. Confirm the installs
+
+After the Release and PyPI workflows succeed, and after Packagist has the package:
 
 ```bash
 npx --yes patchsense --version
 pip install --upgrade patchsense
+patchsense --version
+composer require --dev widyasa/patchsense
+vendor/bin/patchsense --version
+go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.0
 patchsense --version
 brew install Widyasa/tap/patchsense
 patchsense --version
@@ -95,4 +118,6 @@ cargo install patchsense --locked
 patchsense --version
 ```
 
-Each one should print `patchsense 0.1.0`.
+Each one should print `patchsense 0.1.0`. The `go install` line puts the launcher on `PATH` as `patchsense`; run it somewhere that is not still shadowed by a different `patchsense`.
+
+The cargo-dist npm package does not verify sha256. The shell installer, Homebrew formula, Composer proxy, Go launcher, and Docker entrypoint do.
