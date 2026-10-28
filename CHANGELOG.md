@@ -2,6 +2,12 @@
 
 All notable changes to PatchSense are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-10-29
+
+### Changed
+
+- Docs-focused READMEs. crates.io shows `crates/patchsense/README.md` (`cargo install` only, with a link back to GitHub for other methods). The repository README uses the same structure and documents cargo plus the npm, PyPI, Composer, Go, Homebrew, and Docker wrappers. Prebuilt-binary channels wait for the first GitHub Release.
+
 ## [0.1.1]
 
 The core library is merged into `patchsense`. `patchsense` is both the library (`patchsense::...`) and the binary. `patchsense-core` is deprecated and will be yanked after `patchsense` 0.1.1 is on crates.io (`cargo yank --version 0.1.0 patchsense-core`). This checkout does not publish that release and does not push a tag.

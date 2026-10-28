@@ -11,7 +11,7 @@ expression: snapshot
       "vendor": {
         "name": "PatchSense"
       },
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     "end_time": "<redacted>",
     "scanner": {
@@ -21,7 +21,7 @@ expression: snapshot
       "vendor": {
         "name": "PatchSense"
       },
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     "start_time": "<redacted>",
     "status": "success",
