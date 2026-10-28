@@ -68,7 +68,12 @@ fn detail(finding: &Finding) -> String {
                 None => points(item.kev),
             };
             let epss = match &finding.signals.epss {
-                Some(epss) => format!("{} (probability {})", points(item.epss), points(epss.score)),
+                Some(epss) => format!(
+                    "{} (probability {:.4}, percentile {:.4})",
+                    points(item.epss),
+                    epss.score,
+                    epss.percentile
+                ),
                 None => points(item.epss),
             };
             let cvss = match &finding.signals.cvss {
@@ -213,6 +218,22 @@ mod tests {
         assert!(text.contains("2 more findings are not shown"));
         assert!(text.contains("JSON or SARIF"));
         assert_eq!(text.matches("<details>").count(), 1);
+    }
+
+    #[test]
+    fn epss_probability_shows_four_decimals_and_the_percentile() {
+        use crate::model::EpssSignal;
+        let mut item = finding();
+        item.signals.epss = Some(EpssSignal {
+            score: 0.0088,
+            percentile: 0.9123,
+            date: "2026-10-24".to_string(),
+        });
+        let text = render_markdown(&report(vec![item]), 20);
+        assert!(
+            text.contains("probability 0.0088, percentile 0.9123"),
+            "{text}"
+        );
     }
 
     #[test]

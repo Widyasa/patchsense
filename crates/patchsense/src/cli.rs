@@ -121,6 +121,12 @@ pub struct ScanArgs {
     #[arg(long)]
     pub offline: bool,
 
+    /// With `--offline`, exit 2 when an EPSS row or the KEV catalog is past its TTL.
+    ///
+    /// Without this flag, those rows are used and the report warns that they are stale.
+    #[arg(long)]
+    pub strict_cache: bool,
+
     /// Do not read or write the cache.
     #[arg(long)]
     pub no_cache: bool,

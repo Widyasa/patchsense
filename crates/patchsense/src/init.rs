@@ -41,6 +41,8 @@ weight_fraction = 1.0
 ttl_hours_osv = 24
 ttl_hours_epss = 24
 ttl_hours_kev = 24
+# Expired EPSS and KEV stay in an offline score, with a warning. true exits 2.
+strict_cache = false
 
 [output]
 top = 20

@@ -109,6 +109,10 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                     skip_testdata: loaded.config.scan.go_imports.skip_testdata,
                     skip_tests: loaded.config.scan.go_imports.skip_tests,
                 },
+                ttl_osv: loaded.config.cache.osv_ttl(),
+                ttl_epss: loaded.config.cache.epss_ttl(),
+                ttl_kev: loaded.config.cache.kev_ttl(),
+                strict_cache: args.strict_cache || loaded.config.cache.strict_cache,
             };
             let client = ReqwestClient::new().context("failed to build the HTTP client")?;
             let progress = progress::start_scan_progress(progress::stderr_is_tty());

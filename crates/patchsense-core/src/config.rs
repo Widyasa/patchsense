@@ -205,14 +205,17 @@ pub struct UnknownDirect {
 #[serde(deny_unknown_fields)]
 pub struct CacheSection {
     /// OSV body TTL in hours.
-    #[serde(default = "default_ttl_hours")]
+    #[serde(default = "default_ttl_hours", deserialize_with = "de_ttl_hours")]
     pub ttl_hours_osv: u64,
     /// EPSS TTL in hours.
-    #[serde(default = "default_ttl_hours")]
+    #[serde(default = "default_ttl_hours", deserialize_with = "de_ttl_hours")]
     pub ttl_hours_epss: u64,
     /// KEV catalog TTL in hours.
-    #[serde(default = "default_ttl_hours")]
+    #[serde(default = "default_ttl_hours", deserialize_with = "de_ttl_hours")]
     pub ttl_hours_kev: u64,
+    /// When true, `--offline` exits if an EPSS row or the KEV catalog is expired.
+    #[serde(default)]
+    pub strict_cache: bool,
 }
 
 /// `[output]`.
@@ -379,8 +382,30 @@ impl Default for CacheSection {
             ttl_hours_osv: 24,
             ttl_hours_epss: 24,
             ttl_hours_kev: 24,
+            strict_cache: false,
         }
     }
+}
+
+impl CacheSection {
+    /// OSV TTL from [`Self::ttl_hours_osv`].
+    pub fn osv_ttl(&self) -> std::time::Duration {
+        hours(self.ttl_hours_osv)
+    }
+
+    /// EPSS TTL from [`Self::ttl_hours_epss`].
+    pub fn epss_ttl(&self) -> std::time::Duration {
+        hours(self.ttl_hours_epss)
+    }
+
+    /// KEV TTL from [`Self::ttl_hours_kev`].
+    pub fn kev_ttl(&self) -> std::time::Duration {
+        hours(self.ttl_hours_kev)
+    }
+}
+
+fn hours(value: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(value.saturating_mul(3_600))
 }
 
 impl Default for OutputSection {
@@ -532,8 +557,8 @@ fn read_config(request: &LoadRequest<'_>) -> Result<(Option<PathBuf>, Config), C
 
 /// Parse TOML text. `path` is only used in the error.
 pub fn parse_config_str(path: &Path, text: &str) -> Result<Config, CoreError> {
-    let config: Config = toml::from_str(text)
-        .map_err(|err| CoreError::parse(path, None, err.message().to_string()))?;
+    let config: Config =
+        toml::from_str(text).map_err(|err| CoreError::parse(path, None, err.to_string()))?;
     validate(&config, path)?;
     Ok(config)
 }
@@ -795,6 +820,46 @@ where
     deserializer.deserialize_any(NumberVisitor)
 }
 
+fn de_ttl_hours<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct HoursVisitor;
+    impl Visitor<'_> for HoursVisitor {
+        type Value = u64;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a whole number of hours")
+        }
+
+        fn visit_i64<E: de::Error>(self, value: i64) -> Result<u64, E> {
+            u64::try_from(value).map_err(|_| {
+                E::custom("TTL must be a whole number of hours, not a negative number")
+            })
+        }
+
+        fn visit_u64<E: de::Error>(self, value: u64) -> Result<u64, E> {
+            Ok(value)
+        }
+
+        fn visit_f64<E: de::Error>(self, value: f64) -> Result<u64, E> {
+            if value.is_finite() && value >= 0.0 && value.fract() == 0.0 {
+                return Ok(value as u64);
+            }
+            Err(E::custom(
+                "TTL must be a whole number of hours, not a fractional number or nan",
+            ))
+        }
+
+        fn visit_str<E: de::Error>(self, value: &str) -> Result<u64, E> {
+            Err(E::custom(format!(
+                "TTL must be a whole number of hours, not `{value}`"
+            )))
+        }
+    }
+    deserializer.deserialize_any(HoursVisitor)
+}
+
 fn de_ecosystems<'de, D>(deserializer: D) -> Result<Vec<Ecosystem>, D::Error>
 where
     D: Deserializer<'de>,
@@ -969,6 +1034,29 @@ expires = "2027-01-31"
         assert_eq!(loaded.config.explain.agent, ExplainAgent::Auto);
         assert_eq!(loaded.config.explain.lang.as_deref(), Some("id"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ttl_that_is_not_a_whole_number_names_the_key() {
+        for value in ["nan", "1.5", "\"nope\""] {
+            let toml = format!("[cache]\nttl_hours_osv = {value}\n");
+            let err = parse_config_str(Path::new("patchsense.toml"), &toml).expect_err("ttl");
+            let message = err.to_string();
+            assert!(message.contains("ttl_hours_osv"), "{value} -> {message}");
+            assert!(
+                message.contains("whole number of hours"),
+                "{value} -> {message}"
+            );
+            assert!(!message.contains("expected `nan`"), "{value} -> {message}");
+        }
+        let config = parse_config_str(
+            Path::new("patchsense.toml"),
+            "[cache]\nttl_hours_osv = 1\nttl_hours_epss = 2\nttl_hours_kev = 3\nstrict_cache = true\n",
+        )
+        .expect("hours");
+        assert_eq!(config.cache.ttl_hours_osv, 1);
+        assert_eq!(config.cache.epss_ttl().as_secs(), 2 * 3_600);
+        assert!(config.cache.strict_cache);
     }
 
     #[test]
