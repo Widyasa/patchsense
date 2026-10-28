@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -92,7 +93,7 @@ func installBinary(triple, exe, cache string) error {
 	prefix := releaseBase() + "/v" + patchsenseVersion
 	body, err := httpGet(prefix + "/dist-manifest.json")
 	if err != nil {
-		return err
+		return explainDownload(err)
 	}
 	name, expected, err := selectArtifact(body, triple)
 	if err != nil {
@@ -106,7 +107,7 @@ func installBinary(triple, exe, cache string) error {
 	defer os.Remove(archiveName)
 	if err := httpDownload(prefix+"/"+name, archive); err != nil {
 		archive.Close()
-		return err
+		return explainDownload(err)
 	}
 	if err := archive.Close(); err != nil {
 		return err
@@ -273,6 +274,84 @@ func execBinary(binary string, args []string) (int, error) {
 	return 0, fmt.Errorf("failed to execute %s: %w", binary, err)
 }
 
+type httpStatusError struct {
+	url    string
+	status int
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("download failed for %s: HTTP %d", e.url, e.status)
+}
+
+// moduleVersion is the Go module version of this binary. `go test` and
+// `go install .` report `(devel)`. `go install ...@latest` before any tag
+// reports a pseudo-version. Tests replace this.
+var moduleVersion = readModuleVersion
+
+func readModuleVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return ""
+	}
+	return info.Main.Version
+}
+
+// isPseudoVersion reports Go pseudo-versions (vX.Y.Z-timestamp-commit and the
+// forms that put `.0.` before the timestamp). A pseudo-version is a commit,
+// not a release tag.
+func isPseudoVersion(v string) bool {
+	if !strings.HasPrefix(v, "v") || len(v) < 1+14+1+12 {
+		return false
+	}
+	rest := v[1:]
+	commit := rest[len(rest)-12:]
+	for _, c := range commit {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	rest = rest[:len(rest)-12]
+	if !strings.HasSuffix(rest, "-") {
+		return false
+	}
+	rest = strings.TrimSuffix(rest, "-")
+	if len(rest) < 14 {
+		return false
+	}
+	ts := rest[len(rest)-14:]
+	if !strings.HasPrefix(ts, "20") {
+		return false
+	}
+	for _, c := range ts {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	sep := rest[:len(rest)-14]
+	return strings.HasSuffix(sep, "-") || strings.HasSuffix(sep, ".")
+}
+
+func explainDownload(err error) error {
+	var status *httpStatusError
+	if !errors.As(err, &status) || status.status != http.StatusNotFound {
+		return err
+	}
+	return errors.New(notPublishedMessage(status.url))
+}
+
+func notPublishedMessage(url string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "release v%s is not published yet (%s returned HTTP 404).\n", patchsenseVersion, url)
+	if installed := moduleVersion(); isPseudoVersion(installed) {
+		fmt.Fprintf(&b, "This copy was installed as Go module version %s, which is not a release tag. go install ...@latest before the first git tag is a pseudo-version. The source records package version %s, so this launcher looks for GitHub Release v%s.\n", installed, patchsenseVersion, patchsenseVersion)
+	}
+	b.WriteString("Install another way until that GitHub Release exists:\n")
+	b.WriteString("  cargo install patchsense --locked\n")
+	b.WriteString("  building from source: cargo build --release -p patchsense\n")
+	b.WriteString("Or set PATCHSENSE_BINARY=/path/to/patchsense")
+	return b.String()
+}
+
 func httpGet(url string) ([]byte, error) {
 	resp, err := httpClient().Get(url)
 	if err != nil {
@@ -280,7 +359,7 @@ func httpGet(url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("download failed for %s: HTTP %d", url, resp.StatusCode)
+		return nil, &httpStatusError{url: url, status: resp.StatusCode}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -296,7 +375,7 @@ func httpDownload(url string, dest *os.File) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("download failed for %s: HTTP %d", url, resp.StatusCode)
+		return &httpStatusError{url: url, status: resp.StatusCode}
 	}
 	if _, err := io.Copy(dest, resp.Body); err != nil {
 		return fmt.Errorf("download failed for %s: %w", url, err)

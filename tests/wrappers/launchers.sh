@@ -238,5 +238,92 @@ fi
 rm -rf "$proj"
 
 echo "composer launcher ok"
+
+override=$(mktemp)
+cat > "$override" <<'EOF'
+#!/bin/sh
+echo "override-patchsense"
+exit 0
+EOF
+chmod 0755 "$override"
+override_out=$(
+  PATCHSENSE_BINARY="$override" \
+  PATCHSENSE_RELEASE_BASE="http://127.0.0.1:1" \
+  PATCHSENSE_CACHE_DIR="$(mktemp -d)" \
+  php "$root/bin/patchsense" --version
+)
+if [ "$override_out" != "override-patchsense" ]; then
+  echo "php PATCHSENSE_BINARY: $override_out" >&2
+  exit 1
+fi
+shell_override=$(
+  PATCHSENSE_BINARY="$override" \
+  PATCHSENSE_RELEASE_BASE="http://127.0.0.1:1" \
+  "$root/scripts/fetch-release.sh" --version
+)
+if [ "$shell_override" != "override-patchsense" ]; then
+  echo "shell PATCHSENSE_BINARY: $shell_override" >&2
+  exit 1
+fi
+rm -f "$override"
+
+empty_stage=$(mktemp -d)
+port404=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+python3 -m http.server "$port404" --bind 127.0.0.1 --directory "$empty_stage" >"$log" 2>&1 &
+server404=$!
+i=0
+while [ "$i" -lt 50 ]; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port404/releases/download/v0.1.0/dist-manifest.json" || true)
+  if [ "$code" = "404" ]; then
+    break
+  fi
+  i=$((i + 1))
+  sleep 0.05
+done
+if [ "$code" != "404" ]; then
+  echo "404 server did not start" >&2
+  kill "$server404" 2>/dev/null || true
+  exit 1
+fi
+
+assert_missing() {
+  label=$1
+  err=$2
+  code=$3
+  if [ "$code" -eq 0 ]; then
+    echo "$label succeeded on HTTP 404" >&2
+    exit 1
+  fi
+  for phrase in "not published yet" "cargo install patchsense --locked" "building from source" "PATCHSENSE_BINARY=/path/to/patchsense"; do
+    if ! printf '%s\n' "$err" | grep -q "$phrase"; then
+      echo "$label missing '$phrase': $err" >&2
+      exit 1
+    fi
+  done
+}
+
+set +e
+php_err=$(
+  PATCHSENSE_BINARY= \
+  PATCHSENSE_RELEASE_BASE="http://127.0.0.1:$port404/releases/download" \
+  PATCHSENSE_CACHE_DIR="$(mktemp -d)" \
+  php "$root/bin/patchsense" --version 2>&1
+)
+php_code=$?
+shell_err=$(
+  PATCHSENSE_BINARY= \
+  PATCHSENSE_RELEASE_BASE="http://127.0.0.1:$port404/releases/download" \
+  PATCHSENSE_CACHE_DIR="$(mktemp -d)" \
+  "$root/scripts/fetch-release.sh" --version 2>&1
+)
+shell_code=$?
+set -e
+kill "$server404" 2>/dev/null || true
+wait "$server404" 2>/dev/null || true
+rm -rf "$empty_stage"
+assert_missing "php 404" "$php_err" "$php_code"
+assert_missing "shell 404" "$shell_err" "$shell_code"
+echo "missing release ok"
+
 (cd "$root" && go test -count=1 ./go/cmd/patchsense)
 echo "go launcher ok"

@@ -8,6 +8,7 @@ First release. The date is filled in when the `v0.1.0` tag is created. Tagging a
 
 ### Fixed
 
+- Composer, Go, and the Docker entrypoint say release `v0.1.0` is not published yet when the GitHub Release or archive is missing (HTTP 404), and they list `cargo install`, a source build, and `PATCHSENSE_BINARY`. `PATCHSENSE_BINARY` skips the download. A Go pseudo-version from `@latest` before any tag still requests release `v0.1.0` and says so.
 - `.github/workflows/pypi.yml` no longer uses `matrix` in a job-level `if`, so GitHub accepts the file. Publish still runs only on tags whose names start with `v`.
 - The GitLab template accepts `PATCHSENSE_VERSION` as `0.1.0` or `v0.1.0` and does not request tag `vv0.1.0`.
 
