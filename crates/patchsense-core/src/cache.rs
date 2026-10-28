@@ -213,6 +213,26 @@ impl Cache {
         Ok(row.filter(|entry| fresh(entry.fetched_at, now, ttl)))
     }
 
+    /// Cached EPSS row with no TTL check. `None` when the CVE was never stored.
+    pub fn get_epss_stored(&self, cve: &str) -> Result<Option<EpssEntry>, CoreError> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT cve, score, percentile, date, fetched_at FROM epss WHERE cve = ?1",
+                [cve],
+                |row| {
+                    Ok(EpssEntry {
+                        cve: row.get(0)?,
+                        score: row.get(1)?,
+                        percentile: row.get(2)?,
+                        date: row.get(3)?,
+                        fetched_at: row.get(4)?,
+                    })
+                },
+            )
+            .optional()
+        })
+    }
+
     /// Insert or replace an EPSS row.
     pub fn put_epss(&self, entry: &EpssEntry) -> Result<(), CoreError> {
         self.with_conn(|conn| {
@@ -247,6 +267,24 @@ impl Cache {
             .optional()
         })?;
         Ok(row.filter(|entry| fresh(entry.fetched_at, now, ttl)))
+    }
+
+    /// Newest stored KEV catalog with no TTL check.
+    pub fn get_kev_stored(&self) -> Result<Option<KevEntry>, CoreError> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT catalog_version, json, fetched_at FROM kev ORDER BY fetched_at DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok(KevEntry {
+                        catalog_version: row.get(0)?,
+                        json: row.get(1)?,
+                        fetched_at: row.get(2)?,
+                    })
+                },
+            )
+            .optional()
+        })
     }
 
     /// Cached `querybatch` ids for one package inside `ttl`.
@@ -369,7 +407,7 @@ pub fn resolve_cache_db(input: CacheLocation<'_>) -> PathBuf {
     dir.join("cache.db")
 }
 
-fn fresh(fetched_at: i64, now: i64, ttl: Duration) -> bool {
+pub(crate) fn fresh(fetched_at: i64, now: i64, ttl: Duration) -> bool {
     let ttl_secs = i64::try_from(ttl.as_secs()).unwrap_or(i64::MAX);
     now.saturating_sub(fetched_at) < ttl_secs
 }

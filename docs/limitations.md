@@ -16,8 +16,8 @@ SARIF sets `startLine` to the line the parser stored. Most lockfile parsers do n
 
 ## Offline cache
 
-`--offline` does not call the network. Every OSV query and advisory body has to already be in the SQLite cache. If any of those rows is missing or expired, the scan exits 2 and does not print a partial report. Fill the cache with a normal scan first.
+`--offline` does not call the network. Every OSV query and advisory body has to already be in the SQLite cache and inside `[cache] ttl_hours_osv` (24 hours when the key is omitted). If any of those rows is missing or expired, the scan exits 2 and does not print a partial report. Fill the cache with a normal scan first.
 
-EPSS and KEV use the same cache. A missing EPSS row or a missing KEV catalog is a warning, and that signal counts as absent. The finding is still reported. A warm cache that has OSV, EPSS, and KEV scores the same as the online scan.
+EPSS and KEV use `ttl_hours_epss` and `ttl_hours_kev`. A missing row is a warning, and that signal counts as absent. A row that is present but older than its TTL is still used, and the warning names the age. The score does not drop because the row expired. `--strict-cache`, or `strict_cache = true` in the config, exits 2 instead of using that stale row.
 
-An online scan reuses fresh cache rows. `data_sources.*.from_cache` is true only when every row for that source came from the cache. `data_sources.osv.fetched_at` is the oldest stored fetch time in that case, not the clock of the current scan.
+An online scan reuses fresh cache rows and downloads again when a row is older than its TTL. `data_sources.*.from_cache` is true only when every row for that source came from the cache. `data_sources.osv.fetched_at` is the oldest stored fetch time in that case, not the clock of the current scan.

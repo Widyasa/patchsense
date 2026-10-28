@@ -195,6 +195,7 @@ Commands:
 | `--no-dev` | false | Abaikan dev dependency bila parser tahu |
 | `--min-score <N>` | 0 | Sembunyikan temuan di bawah skor N dari output (tidak memengaruhi `--fail-on`) |
 | `--offline` | false | Hanya cache, tanpa jaringan |
+| `--strict-cache` | false | Bersama `--offline`, exit 2 bila baris EPSS atau katalog KEV melewati TTL. Tanpa flag, data kedaluwarsa tetap dipakai dan ada peringatan |
 | `--no-cache` | false | Abaikan cache |
 | `--cache-dir <DIR>` | OS cache | |
 | `--explain` | false | Minta penjelasan dari CLI agent terpasang |
@@ -279,6 +280,7 @@ weight_fraction = 1.0         # direct tidak diketahui: dianggap direct (konserv
 ttl_hours_osv = 24
 ttl_hours_epss = 24
 ttl_hours_kev = 24
+strict_cache = false          # offline: expired EPSS/KEV is an error when true
 
 [output]
 top = 20                      # baris di markdown/komentar

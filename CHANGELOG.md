@@ -37,6 +37,9 @@ Replace `YYYY-MM-DD` with the day `cargo publish` runs. See [`docs/release-check
 
 ### Fixed
 
+- `[cache] ttl_hours_osv`, `ttl_hours_epss`, and `ttl_hours_kev` set the cache lifetime. The default is still 24 hours. A value that is not a whole number of hours is a config error that names the key (#137).
+- `--offline` keeps using an expired EPSS row or KEV catalog and warns with its age, so the score does not drop. `--strict-cache` and `[cache] strict_cache` exit 2 when one of those rows is expired (#137).
+- EPSS probability and percentile are shown to four decimal places in the table, markdown, and `explain_score` (#137).
 - `--offline` loads EPSS and KEV from the SQLite cache, so a warm cache scores the same as an online scan. A missing or expired OSV query or advisory exits 2 instead of reporting zero findings. A missing EPSS row or KEV catalog stays a warning and counts as absent (#135).
 - JSON `data_sources` records whether OSV, EPSS, and KEV came from the cache. `osv.fetched_at` is the stored fetch time when the rows came from the cache (#135).
 - Markdown score lines are labeled as points and rounded to two decimal places. A table cut off at the top rows says how many findings were left out and points at the JSON or SARIF report (#135).

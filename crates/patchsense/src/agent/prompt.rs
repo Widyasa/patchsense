@@ -74,6 +74,7 @@ fn compact_finding(finding: &Finding) -> serde_json::Value {
         "breakdown": finding.signals.breakdown,
         "kev": finding.signals.kev.is_some(),
         "epss": finding.signals.epss.as_ref().map(|item| item.score),
+        "epss_percentile": finding.signals.epss.as_ref().map(|item| item.percentile),
         "references": finding.advisory.references,
     });
     if let Some(note) = &finding.import_note {
@@ -101,6 +102,7 @@ fn fit_oversized(report: &Report) -> String {
             "breakdown": finding.signals.breakdown,
             "kev": finding.signals.kev.is_some(),
             "epss": finding.signals.epss.as_ref().map(|item| item.score),
+            "epss_percentile": finding.signals.epss.as_ref().map(|item| item.percentile),
             "references": references,
         });
         if let Some(note) = &finding.import_note {

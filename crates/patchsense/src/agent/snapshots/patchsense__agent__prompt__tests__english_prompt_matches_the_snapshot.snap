@@ -23,6 +23,7 @@ Data (JSON):
     },
     "ecosystem": "npm",
     "epss": 0.0123,
+    "epss_percentile": 0.78,
     "fixed_versions": [
       "4.17.21"
     ],

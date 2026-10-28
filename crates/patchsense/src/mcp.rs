@@ -223,6 +223,10 @@ async fn scan_project_at(
             skip_testdata: loaded.config.scan.go_imports.skip_testdata,
             skip_tests: loaded.config.scan.go_imports.skip_tests,
         },
+        ttl_osv: loaded.config.cache.osv_ttl(),
+        ttl_epss: loaded.config.cache.epss_ttl(),
+        ttl_kev: loaded.config.cache.kev_ttl(),
+        strict_cache: loaded.config.cache.strict_cache,
     };
     let client = ReqwestClient::new().map_err(|err| err.to_string())?;
     scan_with(&client, &osv_base_url(), path, &options)
@@ -432,6 +436,12 @@ pub(crate) fn explain_finding(finding: &Finding) -> String {
             "EPSS: {} (weight {})",
             item.epss, score.weights.epss
         ));
+        if let Some(epss) = &finding.signals.epss {
+            lines.push(format!(
+                "EPSS probability {:.4}, percentile {:.4}",
+                epss.score, epss.percentile
+            ));
+        }
         lines.push(format!(
             "CVSS: {} (weight {})",
             item.cvss, score.weights.cvss

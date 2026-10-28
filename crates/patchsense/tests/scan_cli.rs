@@ -440,3 +440,96 @@ fn invalid_config_exits_2() {
         .code(2)
         .stderr(predicate::str::contains("not_a_field"));
 }
+
+#[test]
+fn ttl_that_is_not_a_number_names_the_key_and_exits_2() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = dir.path().join("patchsense.toml");
+    std::fs::write(&config, "[cache]\nttl_hours_osv = nan\n").expect("config");
+    let mut command = Command::cargo_bin("patchsense").expect("binary");
+    command
+        .arg("scan")
+        .arg("--config")
+        .arg(&config)
+        .arg(dir.path())
+        .env("NO_COLOR", "1");
+    command
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("ttl_hours_osv"))
+        .stderr(predicate::str::contains("whole number of hours"));
+}
+
+#[tokio::test]
+async fn offline_one_hour_ttl_exits_2_when_the_cache_is_two_hours_old() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/querybatch"))
+        .respond_with(querybatch_body)
+        .mount(&server)
+        .await;
+    let advisory = std::fs::read_to_string(repo_path(
+        "../../tests/fixtures/osv/vulns/GHSA-35jh-r3h4-6jhm.json",
+    ))
+    .expect("advisory fixture");
+    Mock::given(method("GET"))
+        .and(path("/v1/vulns/GHSA-35jh-r3h4-6jhm"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(advisory))
+        .mount(&server)
+        .await;
+    mount_empty_enrichment(&server).await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = dir.path().join("patchsense.toml");
+    std::fs::write(
+        &config,
+        "[cache]\nttl_hours_osv = 1\nttl_hours_epss = 1\nttl_hours_kev = 1\n",
+    )
+    .expect("config");
+    let cache = dir.path().join("cache");
+    std::fs::create_dir(&cache).expect("cache dir");
+
+    let mut warm = Command::cargo_bin("patchsense").expect("binary");
+    warm.arg("scan")
+        .arg("--fail-on")
+        .arg("never")
+        .arg("--config")
+        .arg(&config)
+        .arg("--cache-dir")
+        .arg(&cache)
+        .arg(repo_path("../../tests/fixtures/npm/lodash"))
+        .env("PATCHSENSE_OSV_URL", server.uri())
+        .env("NO_COLOR", "1");
+    enrichment_env(&mut warm, &server);
+    warm.assert().success();
+
+    let status = std::process::Command::new("sqlite3")
+        .arg(cache.join("cache.db"))
+        .arg(
+            "UPDATE osv_vuln SET fetched_at = fetched_at - 7200; \
+             UPDATE osv_query SET fetched_at = fetched_at - 7200; \
+             UPDATE epss SET fetched_at = fetched_at - 7200; \
+             UPDATE kev SET fetched_at = fetched_at - 7200;",
+        )
+        .status()
+        .expect("sqlite3");
+    assert!(status.success(), "sqlite3 update failed");
+
+    let mut offline = Command::cargo_bin("patchsense").expect("binary");
+    offline
+        .arg("scan")
+        .arg("--offline")
+        .arg("--fail-on")
+        .arg("never")
+        .arg("--config")
+        .arg(&config)
+        .arg("--cache-dir")
+        .arg(&cache)
+        .arg(repo_path("../../tests/fixtures/npm/lodash"))
+        .env("PATCHSENSE_OSV_URL", "http://127.0.0.1:9")
+        .env("NO_COLOR", "1");
+    offline
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("offline cache"));
+}

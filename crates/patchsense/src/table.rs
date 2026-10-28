@@ -82,7 +82,7 @@ fn row(finding: &Finding, color: bool) -> Vec<Cell> {
             "no"
         }),
         Cell::new(match &finding.signals.epss {
-            Some(epss) => format!("{:.4}", epss.score),
+            Some(epss) => format!("{:.4} (percentile {:.4})", epss.score, epss.percentile),
             None => "-".to_string(),
         }),
         Cell::new(match &finding.signals.cvss {
