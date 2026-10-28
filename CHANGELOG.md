@@ -16,9 +16,9 @@ Binary channels, after GitHub Actions billing is fixed. The crates.io 0.1.0 publ
 - Docker entrypoint that downloads the musl archive. The image stays local; it is not pushed.
 - Version bump to 0.1.1, then `cargo publish` of `patchsense-core` and `patchsense` so `cargo install` matches the binaries.
 
-## [0.1.0] - YYYY-MM-DD
+## [0.1.0] - 2026-10-28
 
-Replace `YYYY-MM-DD` with the day `cargo publish` runs. See [`docs/release-checklist.md`](docs/release-checklist.md). This release is crates.io only: `patchsense-core`, then `patchsense`. It does not push a tag and it does not publish npm, PyPI, Packagist, Go, Homebrew, Docker, or the shell installer.
+See [`docs/release-checklist.md`](docs/release-checklist.md). This release is crates.io only: `patchsense-core`, then `patchsense`. It does not push a tag and it does not publish npm, PyPI, Packagist, Go, Homebrew, Docker, or the shell installer.
 
 ### Added
 
@@ -37,6 +37,7 @@ Replace `YYYY-MM-DD` with the day `cargo publish` runs. See [`docs/release-check
 
 ### Fixed
 
+- Offline cache errors put a period before the next instruction, so a stale row reads `past the 24h TTL. Run without --offline` instead of running the two sentences together. A missing KEV catalog under `--strict-cache` is named once.
 - An offline OSV query or advisory that is past its TTL is reported as expired, with its age and the TTL. `--strict-cache` also exits 2 when an EPSS row or the KEV catalog was never cached. Stale-cache warnings are included in the Markdown report and in PR and MR comments. A strict error that comes from config says to set `[cache] strict_cache = false` (#139).
 - A TTL that is not a whole number of hours names the key in the error sentence, for example `ttl_hours_osv must be a whole number of hours` (#139).
 - `[cache] ttl_hours_osv`, `ttl_hours_epss`, and `ttl_hours_kev` set the cache lifetime. The default is still 24 hours. A value that is not a whole number of hours is a config error that names the key (#137).

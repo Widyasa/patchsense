@@ -604,7 +604,7 @@ where
         ));
     }
     if missing_kev_strict {
-        missing_strict.push("the KEV catalog is not in the cache".to_string());
+        missing_strict.push("the KEV catalog".to_string());
     }
     if !stale_notes.is_empty() || !missing_strict.is_empty() {
         let mut parts = Vec::new();
@@ -622,14 +622,14 @@ where
         }
         let relief = if !stale_notes.is_empty() {
             format!(
-                " Run without --offline to refresh, or {}.",
+                "Run without --offline to refresh, or {}.",
                 strict_relief(options)
             )
         } else {
-            " Run a scan without --offline to fill the cache.".to_string()
+            "Run a scan without --offline to fill the cache.".to_string()
         };
         return Err(CoreError::OfflineCache {
-            message: format!("{}{relief}", parts.join(". ")),
+            message: format!("{}. {relief}", parts.join(". ")),
         });
     }
     if !stale_epss.is_empty() {
@@ -886,9 +886,9 @@ where
             ));
         }
         let action = if missing.is_empty() {
-            "Run a scan without --offline to refresh the cache"
+            "Run a scan without --offline to refresh the cache."
         } else {
-            "Run a scan without --offline to fill the cache"
+            "Run a scan without --offline to fill the cache."
         };
         return Err(CoreError::OfflineCache {
             message: format!("{}. {action}", parts.join(". ")),
@@ -1678,6 +1678,7 @@ mod tests {
         assert!(message.contains("KEV"), "{message}");
         assert!(message.contains("EPSS"), "{message}");
         assert!(message.contains("2h old"), "{message}");
+        assert!(message.contains("TTL. Run without --offline"), "{message}");
         assert!(message.contains("omit --strict-cache"), "{message}");
         let markdown = crate::report::render_markdown(&second, 20);
         assert!(markdown.contains("## Warnings"), "{markdown}");
@@ -1781,11 +1782,12 @@ mod tests {
         assert!(message.contains("offline cache is missing"), "{message}");
         assert!(message.contains("EPSS"), "{message}");
         assert!(message.contains("CVE-2021-23337"), "{message}");
+        assert!(message.contains("the KEV catalog."), "{message}");
+        assert!(!message.contains("not in the cache"), "{message}");
         assert!(
-            message.contains("KEV catalog is not in the cache"),
+            message.contains(". Run a scan without --offline to fill the cache."),
             "{message}"
         );
-        assert!(message.contains("fill the cache"), "{message}");
     }
 
     #[tokio::test]
