@@ -1,0 +1,21 @@
+{
+  "name": "widyasa/patchsense",
+  "description": "Prioritize vulnerabilities from lockfiles using OSV, EPSS, and CISA KEV",
+  "type": "library",
+  "license": "MIT OR Apache-2.0",
+  "version": "0.1.0",
+  "bin": ["bin/patchsense"],
+  "require": {
+    "php": ">=8.1",
+    "ext-curl": "*",
+    "ext-json": "*"
+  },
+  "authors": [
+    { "name": "Widya Yasa" }
+  ],
+  "homepage": "https://github.com/Widyasa/patchsense",
+  "support": {
+    "source": "https://github.com/Widyasa/patchsense",
+    "issues": "https://github.com/Widyasa/patchsense/issues"
+  }
+}

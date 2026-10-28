@@ -18,3 +18,8 @@
 # Local env
 .env
 *.log
+
+# Composer installs this library into a consumer project. A checkout of this
+# repo is not a Composer application.
+/vendor/
+/composer.lock

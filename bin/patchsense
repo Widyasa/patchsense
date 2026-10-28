@@ -1,0 +1,325 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Composer entry point. Downloads the GitHub Release binary for this package
+ * version, checks sha256, caches it, and execs it. Does not compile Rust.
+ *
+ * PATCHSENSE_VERSION is the package version. It is not read from the environment,
+ * so the downloaded tag always matches this package.
+ * PATCHSENSE_RELEASE_BASE overrides the release download prefix (tests).
+ * PATCHSENSE_CACHE_DIR overrides the cache directory.
+ * PATCHSENSE_TARGET overrides target detection (tests, or a wrong libc guess).
+ */
+
+const PATCHSENSE_VERSION = '0.1.0';
+const DEFAULT_RELEASE_BASE = 'https://github.com/Widyasa/patchsense/releases/download';
+
+main($argv);
+
+function main(array $argv): void
+{
+    [$triple, $exeName] = detect_target();
+    $cache = cache_path($triple, $exeName);
+    if (!is_file($cache)) {
+        install_binary($triple, $exeName, $cache);
+    }
+    run_binary($cache, array_slice($argv, 1));
+}
+
+function fail(string $message): void
+{
+    fwrite(STDERR, "patchsense: {$message}\n");
+    exit(1);
+}
+
+/** @return array{0: string, 1: string} */
+function detect_target(): array
+{
+    $override = getenv('PATCHSENSE_TARGET');
+    if (is_string($override) && $override !== '') {
+        $triple = $override;
+    } else {
+        $machine = php_uname('m');
+        $cpu = match ($machine) {
+            'x86_64', 'amd64' => 'x86_64',
+            'aarch64', 'arm64' => 'aarch64',
+            default => null,
+        };
+        if ($cpu === null) {
+            fail("unsupported architecture {$machine}");
+        }
+        $sys = php_uname('s');
+        if ($sys === 'Linux') {
+            $triple = $cpu . '-unknown-linux-' . (is_musl() ? 'musl' : 'gnu');
+        } elseif ($sys === 'Darwin') {
+            $triple = $cpu . '-apple-darwin';
+        } elseif (stripos($sys, 'WIN') === 0) {
+            $triple = $cpu . '-pc-windows-msvc';
+        } else {
+            fail("unsupported operating system {$sys}");
+        }
+    }
+
+    $exe = str_contains($triple, 'windows') ? 'patchsense.exe' : 'patchsense';
+
+    return [$triple, $exe];
+}
+
+function is_musl(): bool
+{
+    if (is_file('/etc/alpine-release')) {
+        return true;
+    }
+    $ldd = shell_exec('ldd --version 2>&1');
+
+    return is_string($ldd) && stripos($ldd, 'musl') !== false;
+}
+
+function cache_path(string $triple, string $exeName): string
+{
+    $root = getenv('PATCHSENSE_CACHE_DIR');
+    if (!is_string($root) || $root === '') {
+        $home = getenv('HOME');
+        if (!is_string($home) || $home === '') {
+            fail('HOME is not set; set PATCHSENSE_CACHE_DIR');
+        }
+        $root = $home . '/.cache/patchsense';
+    }
+
+    return $root . '/bin/' . PATCHSENSE_VERSION . '/' . $triple . '/' . $exeName;
+}
+
+function release_base(): string
+{
+    $base = getenv('PATCHSENSE_RELEASE_BASE');
+    if (!is_string($base) || $base === '') {
+        $base = DEFAULT_RELEASE_BASE;
+    }
+
+    return rtrim($base, '/');
+}
+
+function install_binary(string $triple, string $exeName, string $cache): void
+{
+    $base = release_base();
+    $prefix = $base . '/v' . PATCHSENSE_VERSION;
+    $manifestRaw = http_get($prefix . '/dist-manifest.json');
+    $manifest = json_decode($manifestRaw, true);
+    if (!is_array($manifest)) {
+        fail('release manifest is not JSON');
+    }
+    [$archiveName, $expected] = select_artifact($manifest, $triple);
+
+    $tmp = tempnam(sys_get_temp_dir(), 'patchsense-');
+    if ($tmp === false) {
+        fail('could not create a temp file');
+    }
+    try {
+        http_download($prefix . '/' . rawurlencode($archiveName), $tmp);
+        $actual = hash_file('sha256', $tmp);
+        if ($actual === false || !hash_equals($expected, $actual)) {
+            fail("checksum mismatch for {$archiveName}");
+        }
+        $extract = sys_get_temp_dir() . '/patchsense-' . bin2hex(random_bytes(8));
+        if (!mkdir($extract, 0700, true) && !is_dir($extract)) {
+            fail('could not create an extract directory');
+        }
+        try {
+            extract_archive($tmp, $extract);
+            $extracted = $extract . '/' . $exeName;
+            if (!is_file($extracted)) {
+                fail("archive {$archiveName} does not contain {$exeName}");
+            }
+            $dir = dirname($cache);
+            if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+                fail('could not create the cache directory');
+            }
+            $staged = $dir . '/.' . $exeName . '.partial';
+            if (!copy($extracted, $staged)) {
+                fail('could not copy the binary into the cache');
+            }
+            chmod($staged, 0755);
+            if (!rename($staged, $cache)) {
+                @unlink($staged);
+                fail('could not commit the cached binary');
+            }
+        } finally {
+            remove_tree($extract);
+        }
+    } finally {
+        @unlink($tmp);
+    }
+}
+
+/** @return array{0: string, 1: string} */
+function select_artifact(array $manifest, string $triple): array
+{
+    foreach (artifact_objects($manifest) as $key => $art) {
+        if (($art['kind'] ?? '') !== 'executable-zip') {
+            continue;
+        }
+        $triples = $art['target_triples'] ?? [];
+        if (!is_array($triples) || !in_array($triple, $triples, true)) {
+            continue;
+        }
+        $name = $art['name'] ?? $key;
+        $sha = $art['checksums']['sha256'] ?? '';
+        if (!is_string($name) || $name === '' || !is_string($sha) || $sha === '') {
+            fail("release manifest entry for {$triple} has no sha256");
+        }
+
+        return [$name, strtolower($sha)];
+    }
+
+    fail('no executable-zip for ' . $triple . ' in the v' . PATCHSENSE_VERSION . ' release');
+}
+
+/** @return array<string, array<string, mixed>> */
+function artifact_objects(array $manifest): array
+{
+    $found = [];
+    $top = $manifest['artifacts'] ?? null;
+    if (is_array($top)) {
+        foreach ($top as $key => $art) {
+            if (is_array($art)) {
+                $found[(string) $key] = $art;
+            }
+        }
+    }
+    foreach ($manifest['releases'] ?? [] as $release) {
+        if (!is_array($release)) {
+            continue;
+        }
+        foreach ($release['artifacts'] ?? [] as $key => $art) {
+            if (is_array($art)) {
+                $found[(string) ($art['name'] ?? $key)] = $art;
+            }
+        }
+    }
+
+    return $found;
+}
+
+function extract_archive(string $archive, string $dest): void
+{
+    $proc = proc_open(
+        ['tar', '-xzf', $archive, '--strip-components=1', '-C', $dest],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes
+    );
+    if (!is_resource($proc)) {
+        fail('could not run tar');
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $code = proc_close($proc);
+    if ($code !== 0) {
+        $detail = trim($stderr . $stdout);
+        fail('could not extract the release archive' . ($detail !== '' ? ": {$detail}" : ''));
+    }
+}
+
+/** @param list<string> $args */
+function run_binary(string $binary, array $args): void
+{
+    $proc = proc_open(
+        array_merge([$binary], $args),
+        [0 => STDIN, 1 => STDOUT, 2 => STDERR],
+        $pipes
+    );
+    if (!is_resource($proc)) {
+        fail("failed to execute {$binary}");
+    }
+    $code = proc_close($proc);
+    exit($code === false ? 1 : $code);
+}
+
+function http_get(string $url): string
+{
+    $tmp = tempnam(sys_get_temp_dir(), 'patchsense-');
+    if ($tmp === false) {
+        fail('could not create a temp file');
+    }
+    try {
+        http_download($url, $tmp);
+        $body = file_get_contents($tmp);
+        if ($body === false) {
+            fail("could not read download of {$url}");
+        }
+
+        return $body;
+    } finally {
+        @unlink($tmp);
+    }
+}
+
+function http_download(string $url, string $dest): void
+{
+    if (!function_exists('curl_init')) {
+        fail('the PHP curl extension is required');
+    }
+    $fh = fopen($dest, 'wb');
+    if ($fh === false) {
+        fail("could not write {$dest}");
+    }
+    $ch = curl_init($url);
+    if ($ch === false) {
+        fclose($fh);
+        fail("could not request {$url}");
+    }
+    $options = [
+        CURLOPT_FILE => $fh,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_FAILONERROR => true,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 180,
+        CURLOPT_USERAGENT => 'patchsense-composer/' . PATCHSENSE_VERSION,
+    ];
+    if (defined('CURLOPT_PROTOCOLS_STR')) {
+        $options[CURLOPT_PROTOCOLS_STR] = 'http,https';
+        $options[CURLOPT_REDIR_PROTOCOLS_STR] = 'http,https';
+    } else {
+        $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+        $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+    }
+    curl_setopt_array($ch, $options);
+    $ok = curl_exec($ch);
+    $error = curl_error($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    fclose($fh);
+    if ($ok !== true) {
+        @unlink($dest);
+        $suffix = $error !== '' ? $error : 'HTTP ' . $code;
+        fail("download failed for {$url}: {$suffix}");
+    }
+}
+
+function remove_tree(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+    $items = scandir($dir);
+    if ($items === false) {
+        return;
+    }
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+        $path = $dir . '/' . $item;
+        if (is_dir($path)) {
+            remove_tree($path);
+        } else {
+            @unlink($path);
+        }
+    }
+    @rmdir($dir);
+}

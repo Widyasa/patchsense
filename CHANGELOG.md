@@ -16,6 +16,7 @@ First release. The date is filled in when the `v0.1.0` tag is created. Tagging a
 
 ### Added
 
+- Composer package `widyasa/patchsense`. `vendor/bin/patchsense` downloads the matching GitHub Release binary, checks sha256, and runs it. No Rust toolchain is required.
 - Lockfile parsers for npm, pnpm, Yarn, Poetry, `requirements.txt`, Composer, Go, Maven, and Cargo.
 - OSV matching with EPSS, CISA KEV, and CVSS, plus a 0–100 priority score.
 - Table, JSON, SARIF, markdown, and GitLab Dependency Scanning reports.
