@@ -18,6 +18,7 @@ First release. The date is filled in when the `v0.1.0` tag is created. Tagging a
 
 ### Added
 
+- Requirements discovery accepts `requirements-*.txt`, `requirements_*.txt`, `requirements.*.txt`, `*.requirements.txt`, and `requirements/*.txt`, including when one of those paths is passed explicitly.
 - Composer package `widyasa/patchsense`. `vendor/bin/patchsense` downloads the matching GitHub Release binary, checks sha256, and runs it. No Rust toolchain is required.
 - Go launcher `github.com/Widyasa/patchsense/go/cmd/patchsense`. `go install` / `go run` download the matching GitHub Release binary, check sha256, and run it. No Rust toolchain is required.
 - Docker entrypoint `scripts/fetch-release.sh`. `docker build` stays local; the image is not pushed. On Alpine x64 it downloads the musl release archive and checks sha256.

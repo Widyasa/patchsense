@@ -153,6 +153,12 @@ mod tests {
         write(&root.join("skipme/pom.xml"), "<project/>");
         write(&root.join("kept/yarn.lock"), "");
         write(&root.join("kept/notes.txt"), "no");
+        write(&root.join("kept/requirements-dev.txt"), "");
+        write(&root.join("kept/requirements_rag.txt"), "");
+        write(&root.join("kept/app.requirements.txt"), "");
+        write(&root.join("requirements/base.txt"), "");
+        write(&root.join("kept/requirements.txt.bak"), "no");
+        write(&root.join("not-requirements/notes.txt"), "no");
 
         let found = discover(root, &["skipme/**".to_string()]).expect("discover");
         let relative: Vec<String> = found.iter().map(|path| rel_slash(root, path)).collect();
@@ -160,8 +166,12 @@ mod tests {
             relative,
             vec![
                 "a-app/requirements.txt".to_string(),
+                "kept/app.requirements.txt".to_string(),
+                "kept/requirements-dev.txt".to_string(),
+                "kept/requirements_rag.txt".to_string(),
                 "kept/yarn.lock".to_string(),
                 "package-lock.json".to_string(),
+                "requirements/base.txt".to_string(),
                 "z-app/Cargo.lock".to_string(),
             ]
         );

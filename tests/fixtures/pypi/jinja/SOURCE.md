@@ -7,4 +7,4 @@
 - License: BSD-3-Clause (Copyright 2007 Pallets)
 - Retrieved: 2026-10-25
 
-The file contents are unchanged. The fixture is named `requirements.txt` because that is the file name the parser recognises. It is a pip-compile-multi pin file: six `name==version` lines plus comments.
+The file contents are unchanged. The fixture is named `requirements.txt` so the canonical file name stays covered. The parser also accepts `requirements/*.txt`. It is a pip-compile-multi pin file: six `name==version` lines plus comments.
