@@ -1,0 +1,206 @@
+#!/bin/sh
+# Exercise release-binary launchers against a local fake GitHub release.
+# No network beyond 127.0.0.1. No Rust compile.
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+cd "$root"
+
+cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+php_version=$(sed -n "s/^const PATCHSENSE_VERSION = '\\(.*\\)';/\\1/p" bin/patchsense)
+composer_version=$(php -r 'echo json_decode(file_get_contents("composer.json"), true)["version"];')
+if [ "$cargo_version" != "0.1.0" ] || [ "$php_version" != "$cargo_version" ] || [ "$composer_version" != "$cargo_version" ]; then
+  echo "version pin mismatch cargo=$cargo_version php=$php_version composer=$composer_version" >&2
+  exit 1
+fi
+
+stage=$(mktemp -d)
+cache=$(mktemp -d)
+log=$(mktemp)
+server_pid=""
+cleanup() {
+  if [ -n "$server_pid" ]; then
+    kill "$server_pid" 2>/dev/null || true
+    wait "$server_pid" 2>/dev/null || true
+  fi
+  rm -rf "$stage" "$cache" "$log"
+}
+trap cleanup EXIT
+
+port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+
+write_manifest() {
+  archive=$1
+  sha=$(sha256sum "$archive" | awk '{print $1}')
+  name=$(basename "$archive")
+  cat > "$stage/releases/download/v0.1.0/dist-manifest.json" <<EOF
+{
+  "artifacts": {
+    "$name": {
+      "name": "$name",
+      "kind": "executable-zip",
+      "target_triples": ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"],
+      "checksums": { "sha256": "$sha" }
+    }
+  }
+}
+EOF
+}
+
+pack_binary() {
+  src=$1
+  work=$(mktemp -d)
+  mkdir -p "$work/patchsense-x86_64-unknown-linux-gnu"
+  cp "$src" "$work/patchsense-x86_64-unknown-linux-gnu/patchsense"
+  chmod 0755 "$work/patchsense-x86_64-unknown-linux-gnu/patchsense"
+  mkdir -p "$stage/releases/download/v0.1.0"
+  archive="$stage/releases/download/v0.1.0/patchsense-x86_64-unknown-linux-gnu.tar.gz"
+  tar -C "$work" -czf "$archive" patchsense-x86_64-unknown-linux-gnu
+  rm -rf "$work"
+  write_manifest "$archive"
+}
+
+start_server() {
+  python3 -m http.server "$port" --bind 127.0.0.1 --directory "$stage" >"$log" 2>&1 &
+  server_pid=$!
+  i=0
+  while [ "$i" -lt 50 ]; do
+    if curl -fsS "http://127.0.0.1:$port/releases/download/v0.1.0/dist-manifest.json" >/dev/null 2>&1; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 0.05
+  done
+  echo "fake release server did not start" >&2
+  cat "$log" >&2
+  exit 1
+}
+
+stop_server() {
+  if [ -n "$server_pid" ]; then
+    kill "$server_pid" 2>/dev/null || true
+    wait "$server_pid" 2>/dev/null || true
+    server_pid=""
+  fi
+}
+
+fake=$(mktemp)
+cat > "$fake" <<'EOF'
+#!/bin/sh
+if [ "${1:-}" = "--exit" ]; then
+  exit "$2"
+fi
+if [ "${1:-}" = "--version" ]; then
+  echo "fake-patchsense 0.1.0"
+  exit 0
+fi
+printf 'args:%s\n' "$*"
+exit 0
+EOF
+chmod 0755 "$fake"
+pack_binary "$fake"
+rm -f "$fake"
+start_server
+
+export PATCHSENSE_RELEASE_BASE="http://127.0.0.1:$port/releases/download"
+export PATCHSENSE_CACHE_DIR="$cache"
+
+out=$(php "$root/bin/patchsense" --version)
+if [ "$out" != "fake-patchsense 0.1.0" ]; then
+  echo "unexpected version: $out" >&2
+  exit 1
+fi
+
+args_out=$(php "$root/bin/patchsense" hello "two words")
+if [ "$args_out" != "args:hello two words" ]; then
+  echo "unexpected args: $args_out" >&2
+  exit 1
+fi
+
+set +e
+php "$root/bin/patchsense" --exit 3
+code=$?
+set -e
+if [ "$code" -ne 3 ]; then
+  echo "exit code was $code, want 3" >&2
+  exit 1
+fi
+
+stop_server
+out=$(php "$root/bin/patchsense" --version)
+if [ "$out" != "fake-patchsense 0.1.0" ]; then
+  echo "cached run failed offline: $out" >&2
+  exit 1
+fi
+
+empty=$(mktemp -d)
+export PATCHSENSE_CACHE_DIR="$empty"
+set +e
+offline_err=$(php "$root/bin/patchsense" --version 2>&1)
+offline_code=$?
+set -e
+if [ "$offline_code" -eq 0 ]; then
+  echo "uncached run succeeded without a server" >&2
+  exit 1
+fi
+echo "$offline_err" | grep -q "download failed" || {
+  echo "missing download error: $offline_err" >&2
+  exit 1
+}
+
+start_server
+python3 - <<PY
+import json
+p = "$stage/releases/download/v0.1.0/dist-manifest.json"
+data = json.load(open(p))
+for art in data["artifacts"].values():
+    art["checksums"]["sha256"] = "0" * 64
+json.dump(data, open(p, "w"))
+PY
+bad_cache=$(mktemp -d)
+export PATCHSENSE_CACHE_DIR="$bad_cache"
+set +e
+bad_err=$(php "$root/bin/patchsense" --version 2>&1)
+bad_code=$?
+set -e
+if [ "$bad_code" -eq 0 ]; then
+  echo "bad checksum was accepted" >&2
+  exit 1
+fi
+echo "$bad_err" | grep -q "checksum mismatch" || {
+  echo "missing checksum error: $bad_err" >&2
+  exit 1
+}
+if find "$bad_cache" -type f -name patchsense | grep -q .; then
+  echo "bad checksum left a cached binary" >&2
+  exit 1
+fi
+
+if [ -x "$root/target/release/patchsense" ]; then
+  pack_binary "$root/target/release/patchsense"
+  real_cache=$(mktemp -d)
+  export PATCHSENSE_CACHE_DIR="$real_cache"
+  real=$(php "$root/bin/patchsense" --version)
+  if [ "$real" != "patchsense 0.1.0" ]; then
+    echo "real binary version: $real" >&2
+    exit 1
+  fi
+fi
+
+proj=$(mktemp -d)
+(
+  cd "$proj"
+  export COMPOSER_DISABLE_NETWORK=1
+  composer init --name=test/app --no-interaction --quiet
+  composer config repositories.patchsense "{\"type\":\"path\",\"url\":\"$root\",\"options\":{\"symlink\":false}}"
+  composer require --dev widyasa/patchsense:0.1.0 --no-interaction --no-progress
+)
+export PATCHSENSE_CACHE_DIR="$cache"
+vendor_out=$("$proj/vendor/bin/patchsense" --version)
+if [ "$vendor_out" != "fake-patchsense 0.1.0" ]; then
+  echo "composer bin version: $vendor_out" >&2
+  exit 1
+fi
+rm -rf "$proj"
+
+echo "composer launcher ok"
