@@ -8,6 +8,9 @@
 //! A concrete `platform` / `platform-dev` version (no constraint operator) is
 //! also a package. That is how the PHP2Shell demo records PHP `8.3.35`.
 //! Constraint strings such as `^8.1` are not installed versions and are skipped.
+//!
+//! Branch versions (`dev-main`, `8.1.x-dev`) and `dist.type` `path` packages
+//! are skipped with a warning. They are not sent to OSV.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -51,15 +54,33 @@ fn parse_composer(path: &Path, content: &str) -> Result<ParsedLockfile, CoreErro
     let sibling = composer_json_deps(path)?;
     let source = display_path(path);
     let mut packages = Vec::new();
-    push_package_list(&doc, "packages", false, &sibling, &source, &mut packages);
-    push_package_list(&doc, "packages-dev", true, &sibling, &source, &mut packages);
+    let mut warnings = Vec::new();
+    push_package_list(
+        &doc,
+        "packages",
+        false,
+        &sibling,
+        &source,
+        &mut packages,
+        &mut warnings,
+    );
+    push_package_list(
+        &doc,
+        "packages-dev",
+        true,
+        &sibling,
+        &source,
+        &mut packages,
+        &mut warnings,
+    );
     push_platform(&doc, "platform", false, &sibling, &source, &mut packages);
     push_platform(&doc, "platform-dev", true, &sibling, &source, &mut packages);
     packages.sort_by(|left, right| (&left.name, &left.version).cmp(&(&right.name, &right.version)));
+    warnings.sort();
     Ok(ParsedLockfile {
         ecosystem: Ecosystem::Packagist,
         packages,
-        warnings: Vec::new(),
+        warnings,
     })
 }
 
@@ -70,6 +91,7 @@ fn push_package_list(
     sibling: &Option<ComposerJsonDeps>,
     source: &str,
     packages: &mut Vec<Package>,
+    warnings: &mut Vec<String>,
 ) {
     let Some(list) = doc.get(key).and_then(Value::as_array) else {
         return;
@@ -81,6 +103,14 @@ fn push_package_list(
         let Some(version) = item.get("version").and_then(Value::as_str) else {
             continue;
         };
+        if is_branch_version(version) {
+            warnings.push(format!("skipped Packagist branch version {name}@{version}"));
+            continue;
+        }
+        if is_path_package(item) {
+            warnings.push(format!("skipped Packagist path package {name}@{version}"));
+            continue;
+        }
         packages.push(make_package(
             name,
             normalize_packagist_version(version),
@@ -89,6 +119,18 @@ fn push_package_list(
             source,
         ));
     }
+}
+
+fn is_branch_version(version: &str) -> bool {
+    let version = version.trim();
+    version.starts_with("dev-") || version.ends_with(".x-dev")
+}
+
+fn is_path_package(item: &Value) -> bool {
+    item.get("dist")
+        .and_then(|dist| dist.get("type"))
+        .and_then(Value::as_str)
+        == Some("path")
 }
 
 fn push_platform(
@@ -286,6 +328,45 @@ mod tests {
         assert_eq!(php.version, "8.3.35");
         assert_eq!(php.ecosystem, Ecosystem::Packagist);
         assert_eq!(php.direct, Some(true));
+    }
+
+    #[test]
+    fn branch_and_path_versions_are_skipped() {
+        let lock = r#"{
+            "packages": [
+                {"name": "symfony/yaml", "version": "dev-main"},
+                {"name": "symfony/http-foundation", "version": "8.1.x-dev"},
+                {"name": "acme/local-pkg", "version": "dev-main", "dist": {"type": "path"}},
+                {"name": "acme/path-release", "version": "1.2.3", "dist": {"type": "path"}},
+                {"name": "symfony/console", "version": "v6.4.1"}
+            ]
+        }"#;
+        let parsed = ComposerParser
+            .parse(Path::new("composer.lock"), lock)
+            .expect("parse");
+        let names: Vec<&str> = parsed
+            .packages
+            .iter()
+            .map(|package| package.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["symfony/console"]);
+        assert_eq!(parsed.packages[0].version, "6.4.1");
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("symfony/yaml@dev-main")));
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("symfony/http-foundation@8.1.x-dev")));
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("acme/path-release@1.2.3")));
+        assert!(parsed
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("acme/local-pkg@dev-main")));
     }
 
     #[test]

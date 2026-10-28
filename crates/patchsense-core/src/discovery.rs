@@ -14,24 +14,48 @@ use crate::lockfile::parser_for;
 
 const SKIP_DIRS: &[&str] = &["node_modules", "vendor", "target", ".git", ".venv", "venv"];
 
+/// Names this build recognizes and does not parse.
+const UNSUPPORTED_LOCKFILES: &[&str] = &["bun.lock", "bun.lockb"];
+
+/// Lockfiles under `root`, plus notes for known files that are not parsed.
+pub struct DiscoverReport {
+    /// Supported lockfiles, in sorted relative-path order.
+    pub files: Vec<PathBuf>,
+    /// One line per unsupported known lockfile, such as `bun.lock`.
+    pub warnings: Vec<String>,
+}
+
 /// Lockfiles under `root`.
 ///
 /// When `root` is a file, that file is returned by itself and exclude globs
 /// are not applied. When `root` is a directory, only recognised lockfile names
 /// are returned, in sorted relative-path order.
 pub fn discover(root: &Path, excludes: &[String]) -> Result<Vec<PathBuf>, CoreError> {
+    Ok(discover_report(root, excludes)?.files)
+}
+
+/// [`discover`] plus a warning for each known unsupported lockfile.
+pub fn discover_report(root: &Path, excludes: &[String]) -> Result<DiscoverReport, CoreError> {
     let metadata = fs::metadata(root).map_err(|source| CoreError::Io {
         path: root.to_path_buf(),
         source,
     })?;
     if metadata.is_file() {
-        return Ok(vec![root.to_path_buf()]);
+        return Ok(DiscoverReport {
+            files: vec![root.to_path_buf()],
+            warnings: Vec::new(),
+        });
     }
     let globs = compile_excludes(excludes)?;
     let mut found = Vec::new();
-    walk(root, root, &globs, &mut found)?;
+    let mut warnings = Vec::new();
+    walk(root, root, &globs, &mut found, &mut warnings)?;
     found.sort_by_key(|path| rel_slash(root, path));
-    Ok(found)
+    warnings.sort();
+    Ok(DiscoverReport {
+        files: found,
+        warnings,
+    })
 }
 
 fn compile_excludes(excludes: &[String]) -> Result<GlobSet, CoreError> {
@@ -63,6 +87,7 @@ fn walk(
     dir: &Path,
     globs: &GlobSet,
     found: &mut Vec<PathBuf>,
+    warnings: &mut Vec<String>,
 ) -> Result<(), CoreError> {
     let entries = fs::read_dir(dir).map_err(|source| CoreError::Io {
         path: dir.to_path_buf(),
@@ -92,12 +117,18 @@ fn walk(
             if is_skipped_dir(&entry.file_name()) || is_excluded(globs, &rel, true) {
                 continue;
             }
-            walk(root, &path, globs, found)?;
-        } else if file_type.is_file()
-            && parser_for(&path).is_some()
-            && !is_excluded(globs, &rel, false)
-        {
-            found.push(path);
+            walk(root, &path, globs, found, warnings)?;
+        } else if file_type.is_file() && !is_excluded(globs, &rel, false) {
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(is_unsupported_lockfile)
+            {
+                warnings.push(format!("found {rel}, which is not a supported lockfile"));
+            }
+            if parser_for(&path).is_some() {
+                found.push(path);
+            }
         }
     }
     Ok(())
@@ -105,6 +136,10 @@ fn walk(
 
 fn is_skipped_dir(name: &std::ffi::OsStr) -> bool {
     SKIP_DIRS.iter().any(|skip| name == *skip)
+}
+
+fn is_unsupported_lockfile(name: &str) -> bool {
+    UNSUPPORTED_LOCKFILES.contains(&name)
 }
 
 fn is_excluded(globs: &GlobSet, rel: &str, is_dir: bool) -> bool {
@@ -209,5 +244,29 @@ mod tests {
         let found = discover(root, &[]).expect("discover");
         let relative: Vec<String> = found.iter().map(|path| rel_slash(root, path)).collect();
         assert_eq!(relative, vec!["real/package-lock.json".to_string()]);
+    }
+
+    #[test]
+    fn bun_lock_is_a_warning_and_not_a_lockfile() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let root = temp.path();
+        write(&root.join("bun.lock"), "");
+        write(&root.join("nested/bun.lockb"), "");
+        write(&root.join("node_modules/bun.lock"), "");
+        write(&root.join("package-lock.json"), "{}");
+        let report = discover_report(root, &[]).expect("discover");
+        let relative: Vec<String> = report
+            .files
+            .iter()
+            .map(|path| rel_slash(root, path))
+            .collect();
+        assert_eq!(relative, vec!["package-lock.json".to_string()]);
+        assert_eq!(
+            report.warnings,
+            vec![
+                "found bun.lock, which is not a supported lockfile".to_string(),
+                "found nested/bun.lockb, which is not a supported lockfile".to_string(),
+            ]
+        );
     }
 }

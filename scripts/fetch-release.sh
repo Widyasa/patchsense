@@ -13,7 +13,7 @@ version=0.1.0
 
 fail() {
   echo "patchsense: $*" >&2
-  exit 1
+  exit 2
 }
 
 if [ -n "${PATCHSENSE_BINARY:-}" ]; then

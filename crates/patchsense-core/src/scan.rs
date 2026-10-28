@@ -10,6 +10,8 @@
 //! `--keep-going` (the default) turns a bad lockfile into a warning unless
 //! every lockfile failed. Packages are deduped on ecosystem, name, and version
 //! before the OSV query. `--ecosystem` and `--no-dev` drop packages first.
+//! `--offline` reads OSV, EPSS, and KEV from the cache. A missing OSV query
+//! or advisory is an error. A missing EPSS or KEV row is a warning.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -17,7 +19,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::cache::{Cache, DEFAULT_TTL};
 use crate::config::{FailOn, IgnoreRule, ScoreSection};
-use crate::discovery::discover;
+use crate::discovery::discover_report;
 use crate::enrich::epss::{self, DEFAULT_EPSS_URL};
 use crate::enrich::kev::{self, DEFAULT_KEV_URL};
 use crate::enrich::merge_advisories;
@@ -31,7 +33,8 @@ use crate::model::{
     WeightSnapshot,
 };
 use crate::osv::{
-    cache_query, cached_query, fetch_advisories_cached, query_batch, AdvisoryCache, OsvVulnRef,
+    cache_query, cached_query, fetch_advisories_cached, query_batch, AdvisoryCache, FetchOrigin,
+    OsvVulnRef,
 };
 use crate::score::{score_request, EpssSample, ScoreRequest};
 
@@ -115,15 +118,22 @@ pub async fn scan_with<C>(
 where
     C: HttpClient + Clone + 'static,
 {
-    let files = discover(root, &options.excludes)?;
+    let discovered = discover_report(root, &options.excludes)?;
+    let files = discovered.files;
     if files.is_empty() {
+        let hint = if discovered.warnings.is_empty() {
+            String::new()
+        } else {
+            format!(". {}", discovered.warnings.join(". "))
+        };
         return Err(CoreError::NoLockfile {
             path: root.to_path_buf(),
+            hint,
         });
     }
 
     let mut packages = Vec::new();
-    let mut warnings = Vec::new();
+    let mut warnings = discovered.warnings;
     let mut failures = Vec::new();
     let mut lockfiles = Vec::new();
 
@@ -165,10 +175,15 @@ where
             Ok(parsed) => {
                 let file_warnings = parsed.warnings.clone();
                 warnings.extend(file_warnings.iter().cloned());
+                let kept = parsed
+                    .packages
+                    .iter()
+                    .filter(|package| package_wanted(package, options))
+                    .count();
                 lockfiles.push(LockfileRecord {
                     path: label.clone(),
                     ecosystem,
-                    packages: parsed.packages.len(),
+                    packages: kept,
                     status: "ok".to_string(),
                     warnings: file_warnings,
                 });
@@ -207,22 +222,14 @@ where
 
     let now = options.now.unwrap_or_else(unix_now);
     let cache = open_scan_cache(options)?;
-    let matched = match_packages(
-        client,
-        base_url,
-        &packages,
-        options,
-        cache.as_ref(),
-        now,
-        &mut warnings,
-    )
-    .await?;
+    let (matched, mut osv_origin) =
+        match_packages(client, base_url, &packages, options, cache.as_ref(), now).await?;
     let mut groups = Vec::new();
     for (package, vulns) in packages.iter().zip(matched) {
         if vulns.is_empty() {
             continue;
         }
-        let advisories = fetch_advisories_cached(
+        let (advisories, body_origin) = fetch_advisories_cached(
             client,
             base_url,
             &vulns,
@@ -233,14 +240,14 @@ where
                 now,
                 ttl: DEFAULT_TTL,
             },
-            &mut warnings,
         )
         .await?;
+        osv_origin.merge(&body_origin);
         if !advisories.is_empty() {
             groups.push((package.clone(), advisories));
         }
     }
-    let (findings, ignored, epss_date, kev_catalog_version) = if options.enrich {
+    let scored = if options.enrich {
         score_groups(client, options, cache.as_ref(), now, groups, &mut warnings).await?
     } else {
         let mut findings = Vec::new();
@@ -270,9 +277,16 @@ where
                     &right.advisory.id,
                 ))
         });
-        (findings, Vec::new(), None, None)
+        ScoredScan {
+            findings,
+            ignored: Vec::new(),
+            epss_date: None,
+            kev_catalog_version: None,
+            epss_from_cache: false,
+            kev_from_cache: false,
+        }
     };
-    let mut findings = findings;
+    let mut findings = scored.findings;
     go_imports::annotate_findings(&mut findings, root, &options.go_imports, &mut warnings);
     let summary = summarize(&findings, packages.len(), options);
     let generated_at = rfc3339_from_unix(now);
@@ -282,17 +296,17 @@ where
         findings,
         warnings,
         summary,
-        ignored,
+        ignored: scored.ignored,
         context: ReportContext {
             target: slash_path(root),
-            generated_at: generated_at.clone(),
+            generated_at,
             lockfiles,
-            osv_fetched_at: generated_at,
-            osv_from_cache: options.offline,
-            epss_date,
-            epss_from_cache: false,
-            kev_catalog_version,
-            kev_from_cache: false,
+            osv_fetched_at: rfc3339_from_unix(osv_origin.fetched_at(now)),
+            osv_from_cache: osv_origin.served_from_cache(),
+            epss_date: scored.epss_date,
+            epss_from_cache: scored.epss_from_cache,
+            kev_catalog_version: scored.kev_catalog_version,
+            kev_from_cache: scored.kev_from_cache,
             weights: WeightSnapshot {
                 kev: options.score.weights.kev,
                 epss: options.score.weights.epss,
@@ -329,6 +343,15 @@ fn rfc3339_from_unix(seconds: i64) -> String {
     format!("{date}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
+struct ScoredScan {
+    findings: Vec<Finding>,
+    ignored: Vec<IgnoredItem>,
+    epss_date: Option<String>,
+    kev_catalog_version: Option<String>,
+    epss_from_cache: bool,
+    kev_from_cache: bool,
+}
+
 async fn score_groups<C>(
     client: &C,
     options: &ScanOptions,
@@ -336,31 +359,15 @@ async fn score_groups<C>(
     now: i64,
     groups: Vec<(Package, Vec<Advisory>)>,
     warnings: &mut Vec<String>,
-) -> Result<
-    (
-        Vec<Finding>,
-        Vec<IgnoredItem>,
-        Option<String>,
-        Option<String>,
-    ),
-    CoreError,
->
+) -> Result<ScoredScan, CoreError>
 where
     C: HttpClient + Clone + 'static,
 {
     let cves = collect_cves(&groups);
-    let (epss, kev, kev_catalog_version) = if cves.is_empty() {
-        (BTreeMap::new(), BTreeMap::new(), None)
-    } else if options.offline {
-        warnings.push(
-            "offline: EPSS and KEV were not fetched; missing rows count as absent".to_string(),
-        );
-        (BTreeMap::new(), BTreeMap::new(), None)
+    let (epss, kev, kev_catalog_version, epss_from_cache, kev_from_cache) = if cves.is_empty() {
+        (BTreeMap::new(), BTreeMap::new(), None, false, false)
     } else {
-        let epss = epss::fetch_epss(client, &options.epss_base_url, &cves, cache, now).await?;
-        let catalog = kev::fetch_kev(client, &options.kev_feed_url, cache, now).await?;
-        let version = catalog.catalog_version.clone();
-        (epss, catalog.by_cve, Some(version))
+        load_enrichment(client, options, cache, now, &cves, warnings).await?
     };
     let epss_date = epss.values().map(|entry| entry.date.clone()).max();
 
@@ -426,7 +433,95 @@ where
             .then_with(|| left.1.advisory.id.cmp(&right.1.advisory.id))
     });
     let findings = ranked.into_iter().map(|(_, finding)| finding).collect();
-    Ok((findings, ignored, epss_date, kev_catalog_version))
+    Ok(ScoredScan {
+        findings,
+        ignored,
+        epss_date,
+        kev_catalog_version,
+        epss_from_cache,
+        kev_from_cache,
+    })
+}
+
+async fn load_enrichment<C>(
+    client: &C,
+    options: &ScanOptions,
+    cache: Option<&Cache>,
+    now: i64,
+    cves: &[String],
+    warnings: &mut Vec<String>,
+) -> Result<
+    (
+        BTreeMap<String, crate::cache::EpssEntry>,
+        BTreeMap<String, kev::KevRecord>,
+        Option<String>,
+        bool,
+        bool,
+    ),
+    CoreError,
+>
+where
+    C: HttpClient + Clone + 'static,
+{
+    let mut epss = BTreeMap::new();
+    let mut missing_epss = Vec::new();
+    if let Some(cache) = cache {
+        for cve in cves {
+            if let Some(entry) = cache.get_epss(cve, now, DEFAULT_TTL)? {
+                epss.insert(cve.clone(), entry);
+            } else {
+                missing_epss.push(cve.clone());
+            }
+        }
+    } else {
+        missing_epss = cves.to_vec();
+    }
+    let epss_from_cache = missing_epss.is_empty();
+    if !missing_epss.is_empty() {
+        if options.offline {
+            warnings.push(format!(
+                "offline: EPSS has no cached row for {} CVE(s), including {}; those scores count as absent",
+                missing_epss.len(),
+                missing_epss[0]
+            ));
+        } else {
+            let fetched =
+                epss::fetch_epss(client, &options.epss_base_url, &missing_epss, cache, now).await?;
+            epss.extend(fetched);
+        }
+    }
+
+    let (kev, kev_catalog_version, kev_from_cache) = if let Some(cache) = cache {
+        if let Some(entry) = cache.get_kev(now, DEFAULT_TTL)? {
+            let catalog = kev::parse_kev_catalog(&entry.json)?;
+            let version = catalog.catalog_version.clone();
+            (catalog.by_cve, Some(version), true)
+        } else if options.offline {
+            warnings.push(
+                "offline: the KEV catalog is not in the cache; KEV counts as absent".to_string(),
+            );
+            (BTreeMap::new(), None, false)
+        } else {
+            let catalog = kev::fetch_kev(client, &options.kev_feed_url, Some(cache), now).await?;
+            let version = catalog.catalog_version.clone();
+            (catalog.by_cve, Some(version), false)
+        }
+    } else if options.offline {
+        warnings
+            .push("offline: the KEV catalog is not in the cache; KEV counts as absent".to_string());
+        (BTreeMap::new(), None, false)
+    } else {
+        let catalog = kev::fetch_kev(client, &options.kev_feed_url, None, now).await?;
+        let version = catalog.catalog_version.clone();
+        (catalog.by_cve, Some(version), false)
+    };
+    Ok((
+        epss,
+        kev,
+        kev_catalog_version,
+        epss_from_cache,
+        kev_from_cache,
+    ))
 }
 
 fn signals_from(
@@ -554,40 +649,59 @@ async fn match_packages<C>(
     options: &ScanOptions,
     cache: Option<&Cache>,
     now: i64,
-    warnings: &mut Vec<String>,
-) -> Result<Vec<Vec<OsvVulnRef>>, CoreError>
+) -> Result<(Vec<Vec<OsvVulnRef>>, FetchOrigin), CoreError>
 where
     C: HttpClient + Clone + 'static,
 {
-    if options.offline {
-        let mut matched = Vec::with_capacity(packages.len());
-        for package in packages {
-            let refs = match cache {
-                Some(cache) => cached_query(cache, package, now, DEFAULT_TTL)?,
-                None => None,
-            };
-            match refs {
-                Some(refs) => matched.push(refs),
-                None => {
-                    warnings.push(format!(
-                        "offline: no cached OSV query for {} {}@{}",
-                        package.ecosystem.as_osv_str(),
-                        package.name,
-                        package.version
-                    ));
-                    matched.push(Vec::new());
-                }
+    let mut matched = vec![Vec::new(); packages.len()];
+    let mut origin = FetchOrigin::default();
+    let mut misses = Vec::new();
+    let mut missing = Vec::new();
+    for (index, package) in packages.iter().enumerate() {
+        if let Some(cache) = cache {
+            if let Some(hit) = cached_query(cache, package, now, DEFAULT_TTL)? {
+                origin.note_cache(hit.fetched_at);
+                matched[index] = hit.vulns;
+                continue;
             }
         }
-        return Ok(matched);
-    }
-    let matched = query_batch(client, base_url, packages).await?;
-    if let Some(cache) = cache {
-        for (package, vulns) in packages.iter().zip(&matched) {
-            cache_query(cache, package, vulns, now)?;
+        if options.offline {
+            missing.push(format!(
+                "{} {}@{}",
+                package.ecosystem.as_osv_str(),
+                package.name,
+                package.version
+            ));
+        } else {
+            misses.push(index);
         }
     }
-    Ok(matched)
+    if !missing.is_empty() {
+        return Err(CoreError::OfflineCache {
+            message: format!(
+                "offline cache is missing OSV results for {} package(s), including {}. Run a scan without --offline to fill the cache",
+                missing.len(),
+                missing[0]
+            ),
+        });
+    }
+    if !misses.is_empty() {
+        origin.note_network();
+        let pending = misses
+            .iter()
+            .map(|index| packages[*index].clone())
+            .collect::<Vec<_>>();
+        let queried = query_batch(client, base_url, &pending).await?;
+        if let Some(cache) = cache {
+            for (package, vulns) in pending.iter().zip(&queried) {
+                cache_query(cache, package, vulns, now)?;
+            }
+        }
+        for (index, vulns) in misses.into_iter().zip(queried) {
+            matched[index] = vulns;
+        }
+    }
+    Ok((matched, origin))
 }
 
 fn unix_now() -> i64 {
@@ -1053,18 +1167,18 @@ mod tests {
                 .any(|request| request.url.contains("/v1/vulns/")),
             "first scan should fetch the advisory"
         );
+        assert!(!report.context.osv_from_cache);
 
         let second = fake_osv();
-        let report = scan_with(&second, "https://api.osv.dev", dir.path(), &options)
+        let mut later = options.clone();
+        later.now = Some(1_700_000_060);
+        let report = scan_with(&second, "https://api.osv.dev", dir.path(), &later)
             .await
             .expect("second");
         assert_eq!(report.findings.len(), 1);
         assert_eq!(report.findings[0].advisory.id, "GHSA-35jh-r3h4-6jhm");
         assert!(
-            second
-                .recorded()
-                .iter()
-                .all(|request| !request.url.contains("/v1/vulns/")),
+            second.recorded().is_empty(),
             "second scan fetched {:?}",
             second
                 .recorded()
@@ -1072,13 +1186,12 @@ mod tests {
                 .map(|request| request.url.clone())
                 .collect::<Vec<_>>()
         );
-        assert!(
-            second
-                .recorded()
-                .iter()
-                .any(|request| request.url.contains("/v1/querybatch")),
-            "querybatch is not cached away from the network in online mode"
+        assert!(report.context.osv_from_cache);
+        assert_eq!(
+            report.context.osv_fetched_at,
+            rfc3339_from_unix(1_700_000_000)
         );
+        assert_ne!(report.context.osv_fetched_at, report.context.generated_at);
     }
 
     #[tokio::test]
@@ -1091,20 +1204,190 @@ mod tests {
         .expect("lock");
         let mut options = lodash_options(dir.path(), 1_700_000_000);
         options.offline = true;
-        let report = scan_with(
+        let err = scan_with(
             &FakeHttp::forbid(),
             "https://api.osv.dev",
             dir.path(),
             &options,
         )
         .await
-        .expect("offline");
-        assert!(report.findings.is_empty());
+        .expect_err("cold offline cache");
+        let message = err.to_string();
+        assert!(
+            message.contains("offline cache is missing OSV results"),
+            "{message}"
+        );
+        assert!(message.contains("lodash@4.17.14"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn warm_offline_score_matches_online() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+        )
+        .expect("lock");
+        let advisory = lodash_advisory();
+        let http = FakeHttp::with_handler(move |request: &RecordedRequest| {
+            if request.method == "POST" && request.url.ends_with("/v1/querybatch") {
+                return HttpResponse {
+                    status: 200,
+                    body: json!({"results":[{"vulns":[{
+                        "id": "GHSA-35jh-r3h4-6jhm",
+                        "modified": "2024-01-01T00:00:00Z"
+                    }]}]})
+                    .to_string(),
+                };
+            }
+            if request.url.contains("/v1/vulns/") {
+                return HttpResponse {
+                    status: 200,
+                    body: advisory.clone(),
+                };
+            }
+            if request.url.contains("/data/v1/epss") {
+                return HttpResponse {
+                    status: 200,
+                    body: r#"{"data":[{"cve":"CVE-2021-23337","epss":"0.21333","percentile":"0.95","date":"2026-10-24"}]}"#.to_string(),
+                };
+            }
+            if request.url.contains("known_exploited") {
+                return HttpResponse {
+                    status: 200,
+                    body: r#"{"catalogVersion":"2026.10.24","vulnerabilities":[{"cveID":"CVE-2021-23337","dateAdded":"2026-01-01","dueDate":"2026-02-01","knownRansomwareCampaignUse":"Unknown","vulnerabilityName":"lodash","requiredAction":"apply updates"}]}"#.to_string(),
+                };
+            }
+            HttpResponse {
+                status: 500,
+                body: format!("unexpected {}", request.url),
+            }
+        });
+        let mut online = lodash_options(dir.path(), 1_700_000_000);
+        online.enrich = true;
+        let first = scan_with(&http, "https://api.osv.dev", dir.path(), &online)
+            .await
+            .expect("online");
+        assert!(!first.context.osv_from_cache);
+        assert!(!first.context.epss_from_cache);
+        assert!(!first.context.kev_from_cache);
+        assert!(first.findings[0].signals.kev.is_some());
+
+        let mut offline = online.clone();
+        offline.offline = true;
+        offline.now = Some(1_700_000_100);
+        let second = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &offline,
+        )
+        .await
+        .expect("warm offline");
+        assert_eq!(second.findings[0].score, first.findings[0].score);
+        assert_eq!(second.findings[0].tier, first.findings[0].tier);
+        assert!(second.findings[0].signals.kev.is_some());
+        assert!(
+            second.findings[0].score > 40,
+            "KEV should raise the score, got {}",
+            second.findings[0].score
+        );
+        assert!(second.context.osv_from_cache);
+        assert!(second.context.epss_from_cache);
+        assert!(second.context.kev_from_cache);
+        assert_eq!(second.context.osv_fetched_at, first.context.osv_fetched_at);
+        assert_ne!(second.context.osv_fetched_at, second.context.generated_at);
+        assert_eq!(second.context.epss_date.as_deref(), Some("2026-10-24"));
+        assert_eq!(
+            second.context.kev_catalog_version.as_deref(),
+            Some("2026.10.24")
+        );
+        let json = crate::report::render_json(&second).expect("json");
+        let value: Value = serde_json::from_str(&json).expect("json value");
+        assert_eq!(value["data_sources"]["osv"]["from_cache"], true);
+        assert_eq!(value["data_sources"]["epss"]["from_cache"], true);
+        assert_eq!(value["data_sources"]["kev"]["from_cache"], true);
+        assert_eq!(
+            value["data_sources"]["osv"]["fetched_at"],
+            first.context.osv_fetched_at
+        );
+    }
+
+    #[tokio::test]
+    async fn no_dev_lockfile_count_is_filtered() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("composer.lock"),
+            r#"{
+                "packages": [{"name": "acme/prod", "version": "1.0.0"}],
+                "packages-dev": [{"name": "acme/devtool", "version": "2.0.0"}]
+            }"#,
+        )
+        .expect("lock");
+        let http = FakeHttp::with_handler(|request: &RecordedRequest| {
+            let body: Value = serde_json::from_str(&request.body).unwrap_or(json!({}));
+            let queries = body["queries"]
+                .as_array()
+                .map(|items| items.len())
+                .unwrap_or(0);
+            assert_eq!(queries, 1, "{}", request.body);
+            assert!(!request.body.contains("acme/devtool"), "{}", request.body);
+            HttpResponse {
+                status: 200,
+                body: json!({"results": [{}]}).to_string(),
+            }
+        });
+        let options = ScanOptions {
+            no_dev: true,
+            ..ScanOptions::default()
+        };
+        let report = scan_with(&http, "https://api.osv.dev", dir.path(), &options)
+            .await
+            .expect("scan");
+        assert_eq!(report.context.lockfiles[0].packages, 1);
+        assert_eq!(report.summary.packages_scanned, 1);
+    }
+
+    #[tokio::test]
+    async fn bun_lock_without_a_supported_file_names_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("bun.lock"), "").expect("bun");
+        let err = scan_with(
+            &FakeHttp::forbid(),
+            "https://api.osv.dev",
+            dir.path(),
+            &ScanOptions::default(),
+        )
+        .await
+        .expect_err("bun only");
+        let message = err.to_string();
+        assert!(message.contains("no supported lockfile"), "{message}");
+        assert!(message.contains("bun.lock"), "{message}");
+    }
+
+    #[tokio::test]
+    async fn bun_lock_beside_a_lockfile_is_a_warning() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.14"}}}"#,
+        )
+        .expect("lock");
+        fs::write(dir.path().join("bun.lock"), "").expect("bun");
+        let report = scan_with(
+            &fake_osv(),
+            "https://api.osv.dev",
+            dir.path(),
+            &ScanOptions::default(),
+        )
+        .await
+        .expect("scan");
+        assert_eq!(report.findings.len(), 1);
         assert!(
             report
                 .warnings
                 .iter()
-                .any(|warning| warning.contains("offline:")),
+                .any(|warning| warning.contains("bun.lock")),
             "{:?}",
             report.warnings
         );

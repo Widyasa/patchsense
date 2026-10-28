@@ -58,10 +58,19 @@ pub enum CoreError {
     },
 
     /// Scan root contained no supported lockfile.
-    #[error("no supported lockfile found in {path}")]
+    #[error("no supported lockfile found in {path}{hint}")]
     NoLockfile {
         /// Directory or file that was scanned.
         path: PathBuf,
+        /// Extra text, or empty. Includes its own leading separator.
+        hint: String,
+    },
+
+    /// `--offline` needed an OSV cache row that was missing or expired.
+    #[error("{message}")]
+    OfflineCache {
+        /// What was missing and how to fill the cache.
+        message: String,
     },
 
     /// OSV response was missing a field or disagreed with the request.

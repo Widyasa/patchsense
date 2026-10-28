@@ -165,7 +165,7 @@ MCP tools: `list_supported_lockfiles`, `scan_project`, `get_finding`, `get_fix_p
 |---|---|
 | 0 | Scan finished and `--fail-on` did not trip |
 | 1 | A finding reached the `--fail-on` bar (`critical`, `review`, `any`, or a score) |
-| 2 | The scan could not run: bad config, unreadable input, or every lockfile failed |
+| 2 | The scan could not run: bad config, unreadable input, every lockfile failed, or `--offline` is missing OSV cache data. A launcher that cannot start the binary (missing `PATCHSENSE_BINARY`, unpublished release) also exits 2 |
 
 `--fail-on never` stays 0 when findings exist. `--min-score` only hides rows. It does not change the exit code.
 
@@ -173,7 +173,9 @@ MCP tools: `list_supported_lockfiles`, `scan_project`, `get_finding`, `get_fix_p
 
 `patchsense init` writes the example. Flags override environment variables, which override the file. Useful variables: `PATCHSENSE_CONFIG`, `PATCHSENSE_CACHE_DIR`, `PATCHSENSE_FAIL_ON`, `PATCHSENSE_AGENT`, `PATCHSENSE_OSV_URL`, `PATCHSENSE_EPSS_URL`, `PATCHSENSE_KEV_URL`.
 
-`patchsense cache info` and `patchsense cache clear` manage the SQLite cache (`~/.cache/patchsense/cache.db` on Linux).
+`patchsense cache info` and `patchsense cache clear` manage the SQLite cache (`~/.cache/patchsense/cache.db` on Linux). `--cache-dir` works before or after `info` and `clear`.
+
+`--offline` reads OSV, EPSS, and KEV from that cache and does not call the network. A missing OSV query or advisory exits 2. A missing EPSS row or KEV catalog is a warning, and that signal counts as absent. Run one online scan before using `--offline` in CI.
 
 Supported lockfiles: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `poetry.lock`, `requirements.txt`, `composer.lock`, `go.sum`, `pom.xml`, `Cargo.lock`. Requirements discovery also accepts `requirements-*.txt` (`requirements-dev.txt`), `requirements_*.txt` (`requirements_rag.txt`), `*.requirements.txt`, and any `.txt` file in a directory named `requirements`. The same paths work when passed explicitly. Matching ignores ASCII case. `-r`, `--requirement`, `-c`, and `--constraint` are read relative to the file that names them. A repeated name and version is kept once. A cycle or a missing include is a warning, not a failed scan. A remote include is skipped with a warning.
 
@@ -181,7 +183,7 @@ Go findings are version matches on the module in `go.sum`. When the advisory lis
 
 ## Spec
 
-The design source is [`docs/PRD.md`](docs/PRD.md). The task list is [`docs/TASKS.md`](docs/TASKS.md). Agent rules are [`AGENTS.md`](AGENTS.md).
+The design source is [`docs/PRD.md`](docs/PRD.md). The task list is [`docs/TASKS.md`](docs/TASKS.md). Known gaps are [`docs/limitations.md`](docs/limitations.md). Agent rules are [`AGENTS.md`](AGENTS.md).
 
 ## Contributing
 
