@@ -444,42 +444,40 @@ patchsense/
 ├── schemas/report.v1.json
 ├── pyproject.toml                # maturin, bindings = "bin"
 ├── crates/
-│   ├── patchsense-core/           # library: semua logika, tanpa I/O terminal
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── error.rs          # CoreError (thiserror)
-│   │       ├── model.rs          # Package, Ecosystem, Advisory, Finding, Report, Tier
-│   │       ├── config.rs         # Config (serde, deny_unknown_fields), defaults, merge
-│   │       ├── discovery.rs      # cari lockfile, exclude glob
-│   │       ├── lockfile/
-│   │       │   ├── mod.rs        # trait LockfileParser, registry parser
-│   │       │   ├── npm.rs        # package-lock.json
-│   │       │   ├── pnpm.rs
-│   │       │   ├── yarn.rs
-│   │       │   ├── poetry.rs
-│   │       │   ├── requirements.rs
-│   │       │   ├── composer.rs
-│   │       │   ├── gosum.rs
-│   │       │   ├── maven.rs
-│   │       │   └── cargo.rs
-│   │       ├── http.rs           # trait HttpClient + impl reqwest (rustls) + FakeHttp untuk tes
-│   │       ├── osv.rs            # querybatch, pagination, vulns/{id}, parsing ranges
-│   │       ├── enrich/
-│   │       │   ├── mod.rs
-│   │       │   ├── epss.rs
-│   │       │   ├── kev.rs
-│   │       │   └── cvss.rs
-│   │       ├── cache.rs          # rusqlite (bundled), TTL, schema_version
-│   │       ├── score.rs          # formula bagian 9
-│   │       ├── scan.rs           # orkestrasi: discovery → parse → osv → enrich → score
-│   │       └── report/
-│   │           ├── mod.rs
-│   │           ├── json.rs
-│   │           ├── sarif.rs
-│   │           ├── markdown.rs
-│   │           └── gitlab.rs
-│   └── patchsense/                # biner "patchsense"
+│   └── patchsense/                # satu crate: lib (src/lib.rs) dan biner (src/main.rs)
 │       └── src/
+│           ├── lib.rs            # API publik `patchsense::...`
+│           ├── error.rs          # CoreError (thiserror)
+│           ├── model.rs          # Package, Ecosystem, Advisory, Finding, Report, Tier
+│           ├── config.rs         # Config (serde, deny_unknown_fields), defaults, merge
+│           ├── discovery.rs      # cari lockfile, exclude glob
+│           ├── lockfile/
+│           │   ├── mod.rs        # trait LockfileParser, registry parser
+│           │   ├── npm.rs        # package-lock.json
+│           │   ├── pnpm.rs
+│           │   ├── yarn.rs
+│           │   ├── poetry.rs
+│           │   ├── requirements.rs
+│           │   ├── composer.rs
+│           │   ├── gosum.rs
+│           │   ├── maven.rs
+│           │   └── cargo.rs
+│           ├── http.rs           # trait HttpClient + impl reqwest (rustls) + FakeHttp untuk tes
+│           ├── osv.rs            # querybatch, pagination, vulns/{id}, parsing ranges
+│           ├── enrich/
+│           │   ├── mod.rs
+│           │   ├── epss.rs
+│           │   ├── kev.rs
+│           │   └── cvss.rs
+│           ├── cache.rs          # rusqlite (bundled), TTL, schema_version
+│           ├── score.rs          # formula bagian 9
+│           ├── scan.rs           # orkestrasi: discovery → parse → osv → enrich → score
+│           ├── report/
+│           │   ├── mod.rs
+│           │   ├── json.rs
+│           │   ├── sarif.rs
+│           │   ├── markdown.rs
+│           │   └── gitlab.rs
 │           ├── main.rs           # tokio main, anyhow, exit code
 │           ├── cli.rs            # clap derive
 │           ├── table.rs          # comfy-table + warna
@@ -493,7 +491,7 @@ patchsense/
 ```
 
 Prinsip:
-- `patchsense-core` tidak tahu soal terminal, clap, atau MCP. Semua I/O jaringan lewat trait `HttpClient` supaya tes bisa memakai fake.
+- Modul library (`src/lib.rs`) tidak tahu soal terminal, clap, atau MCP. Semua I/O jaringan lewat trait `HttpClient` supaya tes bisa memakai fake. Sejak 0.1.1 crate ini satu: `patchsense` adalah lib dan bin. `patchsense-core` tidak ada di workspace.
 - Trait inti (usulan):
 
 ```rust
@@ -510,7 +508,7 @@ pub trait HttpClient: Send + Sync {
 }
 ```
 
-- Error: `thiserror` di `patchsense-core`, `anyhow` hanya di biner.
+- Error: `thiserror` di modul library, `anyhow` hanya di biner.
 - Versi crate tidak ditetapkan di dokumen ini. Agent memakai versi stabil terbaru saat menambahkan dependency (`cargo add`) dan mencatatnya di `Cargo.lock`.
 
 ### 10.3 Dependency yang disetujui
@@ -695,7 +693,7 @@ Catatan: tampilan laporan Dependency Scanning di UI MR butuh GitLab Ultimate; di
 | npm | cargo-dist installer npm | `npx patchsense scan .` |
 | Homebrew | cargo-dist installer homebrew | Tap `Widyasa/homebrew-tap` |
 | pip | maturin dengan `bindings = "bin"` (https://www.maturin.rs/bindings.html) | Workflow terpisah `pypi.yml` membangun wheel untuk OS yang sama dan publish via trusted publishing |
-| cargo | `cargo install patchsense` | Publish `patchsense-core` dulu, lalu `patchsense` |
+| cargo | `cargo install patchsense` | Satu crate `patchsense` (lib dan bin). `patchsense-core` 0.1.0 di-yank setelah `patchsense` 0.1.1 terbit |
 
 **Nama paket:** nama `patchsense` dipakai seragam di npm, PyPI, crates.io, Homebrew, dan nama biner, tanpa scope npm. Keputusan ini dikunci di W6-T1 (bagian 1.2 dan 17). Per 25 Okt 2026 nama itu masih kosong di keempat registry. Cek ulang tepat sebelum publish.
 

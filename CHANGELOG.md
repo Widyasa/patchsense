@@ -2,9 +2,19 @@
 
 All notable changes to PatchSense are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased / 0.1.1 (planned)
+## [0.1.1]
 
-Binary channels, after GitHub Actions billing is fixed. The crates.io 0.1.0 publish does not create a git tag. `v0.1.0` and `v0` are created with v0.1.1, not before.
+The core library is merged into `patchsense`. `patchsense` is both the library (`patchsense::...`) and the binary. `patchsense-core` is deprecated and will be yanked after `patchsense` 0.1.1 is on crates.io (`cargo yank --version 0.1.0 patchsense-core`). This checkout does not publish that release and does not push a tag.
+
+### Changed
+
+- **Breaking:** `patchsense-core` is gone from the workspace. Depend on `patchsense` and use `patchsense::` for the public API.
+
+### Deprecated
+
+- `patchsense-core` 0.1.0. New work uses `patchsense` 0.1.1. The old crate is yanked once 0.1.1 is live, not before.
+
+Binary channels stay planned for 0.1.1, after GitHub Actions billing is fixed. The crates.io 0.1.0 publish did not create a git tag. `v0.1.1` and `v0` are created together; `v0` points at the v0.1.1 commit.
 
 - GitHub Release binaries via cargo-dist (Linux x64 glibc and musl, Linux arm64 glibc, macOS x64 and arm64, Windows x64).
 - npm installer from cargo-dist.
@@ -14,7 +24,7 @@ Binary channels, after GitHub Actions billing is fixed. The crates.io 0.1.0 publ
 - Homebrew formula pushed to `Widyasa/homebrew-tap`.
 - Shell installer from the GitHub Release.
 - Docker entrypoint that downloads the musl archive. The image stays local; it is not pushed.
-- Version bump to 0.1.1, then `cargo publish` of `patchsense-core` and `patchsense` so `cargo install` matches the binaries.
+- `cargo publish` of `patchsense` only, so `cargo install` matches the binaries. Do not publish `patchsense-core` again.
 
 ## [0.1.0] - 2026-10-28
 

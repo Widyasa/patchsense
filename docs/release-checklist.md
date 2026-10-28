@@ -1,12 +1,16 @@
 # Release checklist
 
-Two phases. Phase A publishes `0.1.0` to crates.io only. Phase B publishes the binary channels as `0.1.1` after GitHub Actions billing is fixed.
+Phase A is done. Kodi published `patchsense` 0.1.0 and `patchsense-core` 0.1.0 to crates.io from `d824a4b` on 2026-10-28. There is still no git tag and no GitHub Release.
 
-Do not push `v0.1.0` or `v0` in Phase A. Those tags are created in Phase B, pointing at the v0.1.1 commit. Nothing in this repository has been tagged or published.
+Phase B publishes the binary channels after GitHub Actions billing is fixed. The workspace version is already `0.1.1` and the only crate is `patchsense` (library and binary). Publish that crate only. After `patchsense` 0.1.1 is live, Kodi or Widya yanks `patchsense-core` 0.1.0. Do not yank it before 0.1.1 is on the index, and do not yank it from a pull request.
 
-The version in the workspace is `0.1.0`. `CHANGELOG.md` has `## [0.1.0] - 2026-10-28`. If the publish moves to another calendar day, change that date before `cargo publish`. Do not tag the commit.
+Do not push `v0.1.0`. `v0.1.1` and `v0` are created in Phase B. `v0` points at the v0.1.1 commit.
+
+`CHANGELOG.md` has `## [0.1.0] - 2026-10-28` and `## [0.1.1]`. Fill the 0.1.1 date on the day `cargo publish` runs. Do not tag the commit until Phase B.
 
 ## Phase A — v0.1.0, crates.io only
+
+Status: complete. The commands in this phase are the record of the 0.1.0 publish. This checkout has no `patchsense-core` package. Do not run them again.
 
 Widya runs this from a laptop. GitHub Actions does not publish this release. Do not push a tag.
 
@@ -26,7 +30,7 @@ cargo publish --dry-run -p patchsense
 
 Core first, then the CLI. Publish order is the same.
 
-Checked on 2026-10-28 against this tree, before `patchsense-core` 0.1.0 exists on crates.io:
+Checked on 2026-10-28 against the two-crate tree at `d824a4b`, before `patchsense-core` 0.1.0 existed on crates.io. These counts are not the 0.1.1 package:
 
 - `cargo package --list -p patchsense-core` lists 67 files, including `LICENSE-MIT`, `LICENSE-APACHE`, and `README.md`.
 - `cargo package --list -p patchsense` lists 35 files, including `LICENSE-MIT`, `LICENSE-APACHE`, and `README.md`.
@@ -50,7 +54,7 @@ Metadata on both crates, inherited from the workspace unless noted:
 | include / exclude | unset. Cargo's default file set. No path outside the crate directory is pulled in except the README, which Cargo copies into the package |
 | license files | `LICENSE-MIT` and `LICENSE-APACHE` are symlinked into each crate directory. `cargo package` follows the links and stores both files in each `.crate`. The SPDX `license` field stays `MIT OR Apache-2.0` |
 
-`patchsense-core` description and categories are set on that crate, not only inherited.
+That split was the 0.1.0 publish. `0.1.1` is `patchsense` only: version `0.1.1`, categories `command-line-utilities` and `development-tools`, and the workspace description. `LICENSE-MIT` and `LICENSE-APACHE` stay symlinked in `crates/patchsense`. `include` stays unset.
 
 Names. Stop if either crate name is already taken by someone else:
 
@@ -133,18 +137,27 @@ PyPI does not use a password. Add a pending trusted publisher on pypi.org for th
 
 `.github/workflows/pypi.yml` requests `id-token: write` and calls `pypa/gh-action-pypi-publish@release/v1` with no password and no GitHub environment.
 
-### B4. Bump, publish the crates, push the tags
+### B4. Publish `patchsense` 0.1.1, yank `patchsense-core`, push the tags
 
-Bump the workspace version, the launcher version constants, and the changelog to `0.1.1`. Commit that on `master`.
+The workspace version is already `0.1.1`. Publish only `patchsense`. There is no second crate in this tree.
 
-`cargo install` should match the binaries, so publish the new crate versions before the tag. Core first, then wait for the index, then the CLI:
+Launcher version constants in `go/cmd/patchsense`, `bin/patchsense`, `composer.json`, and `scripts/fetch-release.sh` still request GitHub Release `v0.1.0`. Bump those constants to `0.1.1` in the commit you tag, so the launchers look for the release that tag creates. Do not tag until that commit is on `master`.
 
 ```bash
-cargo publish -p patchsense-core
-cargo info patchsense-core
 cargo publish --dry-run -p patchsense
 cargo publish -p patchsense
+cargo info patchsense
 ```
+
+Wait until the index shows `patchsense` 0.1.1.
+
+Then yank the deprecated library. Kodi or Widya runs this after `patchsense` 0.1.1 is live, not before, and not from CI:
+
+```bash
+cargo yank --version 0.1.0 patchsense-core
+```
+
+Yank hides `patchsense-core` 0.1.0 from new resolutions. It does not delete the crate. `patchsense` 0.1.0 on crates.io depends on it, so a fresh `cargo install patchsense --version 0.1.0` will not resolve after the yank. That is the point of the single-crate release: install `patchsense` 0.1.1. A lockfile that already pinned `patchsense-core` 0.1.0 can still fetch a yanked version. Do not yank `patchsense` 0.1.0 unless that is a separate decision.
 
 Annotated tags. Pushing `v0.1.1` starts `.github/workflows/release.yml` (GitHub Release, shell and PowerShell installers, npm, Homebrew) and `.github/workflows/pypi.yml` (wheels and PyPI). cargo-dist creates the GitHub Release. There is no separate release step to click.
 

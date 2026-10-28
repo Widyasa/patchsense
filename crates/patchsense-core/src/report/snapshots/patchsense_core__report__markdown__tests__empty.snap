@@ -1,6 +1,0 @@
----
-source: crates/patchsense-core/src/report/markdown.rs
-expression: empty
----
-<!-- patchsense-report -->
-No vulnerabilities

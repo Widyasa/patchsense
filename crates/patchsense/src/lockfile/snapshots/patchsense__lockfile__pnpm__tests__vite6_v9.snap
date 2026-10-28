@@ -1,0 +1,31 @@
+---
+source: crates/patchsense/src/lockfile/pnpm.rs
+expression: parsed
+---
+ecosystem: npm
+packages:
+  - ecosystem: npm
+    name: "@eslint/js"
+    version: 9.15.0
+    direct: true
+    dev: true
+    source_file: tests/fixtures/pnpm/vite6/pnpm-lock.yaml
+  - ecosystem: npm
+    name: "@type-challenges/utils"
+    version: 0.1.1
+    direct: true
+    dev: true
+    source_file: tests/fixtures/pnpm/vite6/pnpm-lock.yaml
+  - ecosystem: npm
+    name: add-stream
+    version: 1.0.0
+    direct: false
+    dev: false
+    source_file: tests/fixtures/pnpm/vite6/pnpm-lock.yaml
+  - ecosystem: npm
+    name: conventional-changelog-cli
+    version: 5.0.0
+    direct: true
+    dev: true
+    source_file: tests/fixtures/pnpm/vite6/pnpm-lock.yaml
+warnings: []

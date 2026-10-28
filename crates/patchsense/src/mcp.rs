@@ -6,15 +6,15 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use patchsense_core::cache::{resolve_cache_db, CacheLocation};
-use patchsense_core::config::{self, FlagInput, LoadRequest};
-use patchsense_core::enrich::epss::epss_base_url;
-use patchsense_core::enrich::kev::kev_feed_url;
-use patchsense_core::http::{osv_base_url, ReqwestClient};
-use patchsense_core::lockfile::{parser_for, supported_file_names};
-use patchsense_core::model::{Ecosystem, Finding, Report, Tier};
-use patchsense_core::report::{render_json, render_markdown};
-use patchsense_core::scan::{minimum_covering_fix, scan_with, ScanOptions};
+use patchsense::cache::{resolve_cache_db, CacheLocation};
+use patchsense::config::{self, FlagInput, LoadRequest};
+use patchsense::enrich::epss::epss_base_url;
+use patchsense::enrich::kev::kev_feed_url;
+use patchsense::http::{osv_base_url, ReqwestClient};
+use patchsense::lockfile::{parser_for, supported_file_names};
+use patchsense::model::{Ecosystem, Finding, Report, Tier};
+use patchsense::report::{render_json, render_markdown};
+use patchsense::scan::{minimum_covering_fix, scan_with, ScanOptions};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::handler::server::ServerHandler;
 use rmcp::{tool, tool_handler, tool_router};
@@ -218,7 +218,7 @@ async fn scan_project_at(
         ignore: loaded.config.ignore.clone(),
         epss_base_url: epss_base_url(),
         kev_feed_url: kev_feed_url(),
-        go_imports: patchsense_core::go_imports::GoImportFilter {
+        go_imports: patchsense::go_imports::GoImportFilter {
             skip_vendor: loaded.config.scan.go_imports.skip_vendor,
             skip_testdata: loaded.config.scan.go_imports.skip_testdata,
             skip_tests: loaded.config.scan.go_imports.skip_tests,
@@ -470,7 +470,7 @@ pub(crate) fn explain_finding(finding: &Finding) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patchsense_core::model::{
+    use patchsense::model::{
         Advisory, BreakdownSignal, FindingSignals, Package, ReportContext, Summary,
     };
 

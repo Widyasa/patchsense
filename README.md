@@ -10,26 +10,28 @@ Repository: [github.com/Widyasa/patchsense](https://github.com/Widyasa/patchsens
 
 ## Install
 
-`0.1.0` is the crates.io release. Widya publishes it with `cargo publish` ([`docs/release-checklist.md`](https://github.com/Widyasa/patchsense/blob/master/docs/release-checklist.md)). There is no git tag and no GitHub Release for 0.1.0.
+`0.1.0` is on crates.io as two crates, `patchsense` and `patchsense-core`, published from `d824a4b`. There is no git tag and no GitHub Release for 0.1.0.
 
-### Available for 0.1.0
+`0.1.1` (this checkout) is one crate. `patchsense` is the library and the binary. The public API is `patchsense::...`. `patchsense-core` is deprecated and will be yanked after `patchsense` 0.1.1 is published ([`docs/release-checklist.md`](https://github.com/Widyasa/patchsense/blob/master/docs/release-checklist.md)).
+
+### Install from crates.io
 
 ```bash
 cargo install patchsense --locked
 ```
 
-That compiles from crates.io. It needs Rust 1.99 (`rust-version` in `Cargo.toml`).
+That compiles from crates.io. It needs Rust 1.99 (`rust-version` in `Cargo.toml`). Until 0.1.1 is published, this installs 0.1.0, which still depends on `patchsense-core`.
 
-From a git checkout, build the same binary without installing:
+From a git checkout, build the 0.1.1 binary without installing:
 
 ```bash
 cargo build --release -p patchsense
 cargo run -p patchsense -- --version
 ```
 
-`cargo run -p patchsense -- --version` prints `patchsense 0.1.0`.
+`cargo run -p patchsense -- --version` prints `patchsense 0.1.1`.
 
-### Coming in v0.1.1
+### Binary channels planned for v0.1.1
 
 npm, pip, Composer, Go, Homebrew, the shell installer, and Docker are not part of 0.1.0. They need GitHub Release binaries, or a PyPI wheel, and those are planned for v0.1.1 after GitHub Actions billing is fixed. The commands below are kept so that release has a known shape. They do not work today.
 
@@ -69,7 +71,7 @@ cargo build --release -p patchsense
 PATCHSENSE_BINARY=$PWD/target/release/patchsense go run ./go/cmd/patchsense --version
 ```
 
-That prints `patchsense 0.1.0`.
+That prints `patchsense 0.1.1`.
 
 `go install github.com/Widyasa/patchsense/go/cmd/patchsense@latest` before the first git tag installs a pseudo-version such as `v0.0.0-20261028141100-abcdefabcdef`. That names a commit, not a release. The launcher still requests GitHub Release `v0.1.0`, the version recorded in the source, and explains the pseudo-version when that release is missing. The 0.1.0 crates.io publish does not create that tag. `@latest` and `@v0.1.0` match a release only after Phase B tags v0.1.1 and bumps the version constant.
 

@@ -1,0 +1,53 @@
+---
+source: crates/patchsense/src/lockfile/maven.rs
+expression: parsed.packages
+---
+- ecosystem: Maven
+  name: "com.google.code.findbugs:jsr305"
+  version: 3.0.2
+  direct: true
+  dev: true
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 82
+- ecosystem: Maven
+  name: "org.apache.commons:commons-text"
+  version: 1.11.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 64
+- ecosystem: Maven
+  name: "org.easymock:easymock"
+  version: 5.2.0
+  direct: true
+  dev: true
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 58
+- ecosystem: Maven
+  name: "org.hamcrest:hamcrest"
+  version: "2.2"
+  direct: true
+  dev: true
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 52
+- ecosystem: Maven
+  name: "org.junit-pioneer:junit-pioneer"
+  version: 1.9.1
+  direct: true
+  dev: true
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 46
+- ecosystem: Maven
+  name: "org.openjdk.jmh:jmh-core"
+  version: "1.37"
+  direct: true
+  dev: true
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 70
+- ecosystem: Maven
+  name: "org.openjdk.jmh:jmh-generator-annprocess"
+  version: "1.37"
+  direct: true
+  dev: true
+  source_file: tests/fixtures/maven/commons-lang/pom.xml
+  line: 76

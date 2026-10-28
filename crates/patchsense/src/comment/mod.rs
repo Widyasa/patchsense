@@ -10,12 +10,12 @@ use std::process::ExitCode;
 use anyhow::Context;
 use serde_json::Value;
 
-use patchsense_core::http::ReqwestClient;
-use patchsense_core::model::{
+use patchsense::http::ReqwestClient;
+use patchsense::model::{
     Advisory, BreakdownSignal, Ecosystem, Finding, FindingSignals, Package, Report, ReportContext,
     Summary, Tier,
 };
-use patchsense_core::report::markdown::{render_markdown, MARKER};
+use patchsense::report::markdown::{render_markdown, MARKER};
 
 use crate::cli::CommentArgs;
 

@@ -3,7 +3,7 @@
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, Color, ContentArrangement, Table};
 
-use patchsense_core::model::{Finding, Report, Tier};
+use patchsense::model::{Finding, Report, Tier};
 
 /// Render findings at or above `min_score`. The footer counts only those rows.
 ///
@@ -119,7 +119,7 @@ fn tier_color(tier: Tier) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patchsense_core::model::{
+    use patchsense::model::{
         Advisory, CvssSignal, Ecosystem, EpssSignal, Finding, FindingSignals, KevSignal, Package,
         Report, ReportContext, Summary,
     };
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn table_prints_the_ai_disclaimer_once() {
         let mut report = report(vec![finding(37, Tier::Defer, false)]);
-        report.findings[0].signals.explanation = Some(patchsense_core::model::Explanation {
+        report.findings[0].signals.explanation = Some(patchsense::model::Explanation {
             agent: "codex".into(),
             text: "Upgrade lodash.".into(),
             disclaimer: "AI explanation, may be wrong".into(),

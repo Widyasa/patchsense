@@ -1,0 +1,40 @@
+---
+source: crates/patchsense/src/lockfile/poetry.rs
+expression: parsed.packages
+---
+- ecosystem: PyPI
+  name: certifi
+  version: 2024.2.2
+  direct: false
+  dev: false
+  source_file: tests/fixtures/pypi/poetry/poetry.lock
+- ecosystem: PyPI
+  name: cleo
+  version: 2.1.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/poetry/poetry.lock
+- ecosystem: PyPI
+  name: poetry-core
+  version: 1.9.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/poetry/poetry.lock
+- ecosystem: PyPI
+  name: pytest
+  version: 8.0.1
+  direct: false
+  dev: true
+  source_file: tests/fixtures/pypi/poetry/poetry.lock
+- ecosystem: PyPI
+  name: requests
+  version: 2.31.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/poetry/poetry.lock
+- ecosystem: PyPI
+  name: urllib3
+  version: 2.2.0
+  direct: false
+  dev: false
+  source_file: tests/fixtures/pypi/poetry/poetry.lock

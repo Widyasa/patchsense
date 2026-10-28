@@ -1,0 +1,28 @@
+---
+source: crates/patchsense/src/lockfile/npm.rs
+expression: parsed.packages
+---
+- ecosystem: npm
+  name: "@actions/core"
+  version: 1.10.1
+  direct: false
+  dev: true
+  source_file: tests/fixtures/npm/preact/package-lock.json
+- ecosystem: npm
+  name: "@actions/github"
+  version: 6.0.0
+  direct: true
+  dev: true
+  source_file: tests/fixtures/npm/preact/package-lock.json
+- ecosystem: npm
+  name: lodash
+  version: 4.17.21
+  direct: true
+  dev: true
+  source_file: tests/fixtures/npm/preact/package-lock.json
+- ecosystem: npm
+  name: uuid
+  version: 8.3.2
+  direct: false
+  dev: true
+  source_file: tests/fixtures/npm/preact/package-lock.json

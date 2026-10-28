@@ -1,0 +1,46 @@
+---
+source: crates/patchsense/src/lockfile/requirements.rs
+expression: parsed.packages
+---
+- ecosystem: PyPI
+  name: exceptiongroup
+  version: 1.1.1
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/jinja/requirements.txt
+  line: 8
+- ecosystem: PyPI
+  name: iniconfig
+  version: 2.0.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/jinja/requirements.txt
+  line: 10
+- ecosystem: PyPI
+  name: packaging
+  version: "23.1"
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/jinja/requirements.txt
+  line: 12
+- ecosystem: PyPI
+  name: pluggy
+  version: 1.2.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/jinja/requirements.txt
+  line: 14
+- ecosystem: PyPI
+  name: pytest
+  version: 7.4.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/jinja/requirements.txt
+  line: 16
+- ecosystem: PyPI
+  name: tomli
+  version: 2.0.1
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/jinja/requirements.txt
+  line: 18

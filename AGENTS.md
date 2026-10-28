@@ -13,23 +13,24 @@ PatchSense adalah CLI Rust open source untuk triage CVE: membaca lockfile (npm, 
 ## 2. Struktur repo
 
 ```
-crates/patchsense-core/   library: model, config, discovery, lockfile/*, http, osv, enrich/*, cache, score, scan, report/*
-crates/patchsense/        biner: cli, table, progress, comment/*, mcp, agent/*, init
+crates/patchsense/       satu crate: lib (src/lib.rs) dan biner (src/main.rs)
+                         lib: model, config, discovery, lockfile/*, http, osv, enrich/*, cache, score, scan, report/*
+                         bin: cli, table, progress, comment/*, mcp, agent/*, init
 tests/fixtures/          fixture nyata per ekosistem + respon API
 templates/gitlab/        template GitLab CI
 action.yml               GitHub Action
 schemas/                 JSON Schema report
 ```
 
-Aturan lapisan: `patchsense-core` tidak boleh bergantung pada `clap`, `comfy-table`, `indicatif`, atau `rmcp`, dan tidak mencetak ke stdout/stderr. Semua jaringan lewat trait `HttpClient`.
+Aturan lapisan: modul yang dideklarasikan dari `src/lib.rs` tidak boleh memakai `clap`, `comfy-table`, `indicatif`, atau `rmcp`, dan tidak mencetak ke stdout/stderr. Semua jaringan lewat trait `HttpClient`. API publik adalah `patchsense::...`.
 
 ## 3. Konvensi kode Rust
 
 - Format: `cargo fmt --all`. CI menjalankan `cargo fmt --all --check`.
 - Lint: `cargo clippy --workspace --all-targets --all-features -- -D warnings`. Jangan menambah `#[allow(...)]` tanpa komentar alasan.
 - Error handling:
-  - `patchsense-core`: tipe error eksplisit dengan `thiserror` (`CoreError` dan varian per modul). Tidak ada `anyhow` di core.
-  - `patchsense` (biner): `anyhow::Result` dengan `.context("...")` yang menyebut file/URL terkait.
+  - Library (`src/lib.rs`): tipe error eksplisit dengan `thiserror` (`CoreError` dan varian per modul). Tidak ada `anyhow` di modul library.
+  - Biner (`src/main.rs`): `anyhow::Result` dengan `.context("...")` yang menyebut file/URL terkait.
   - Dilarang `unwrap()`/`expect()` di kode non-tes, kecuali invarian yang terbukti dan diberi komentar `// INVARIANT: ...`. Tidak boleh `panic!` karena input user.
 - Async: `tokio` hanya untuk I/O jaringan dan orkestrasi. Parser lockfile adalah fungsi sinkron murni (`&str` → struct).
 - Serde: `#[serde(deny_unknown_fields)]` untuk config; untuk respon API **jangan** pakai `deny_unknown_fields` (API bisa menambah field).

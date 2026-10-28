@@ -1,0 +1,25 @@
+---
+source: crates/patchsense/src/lockfile/yarn.rs
+expression: parsed
+---
+ecosystem: npm
+packages:
+  - ecosystem: npm
+    name: "@aashutoshrathi/word-wrap"
+    version: 1.2.6
+    direct: false
+    dev: false
+    source_file: tests/fixtures/yarn/berry/yarn.lock
+  - ecosystem: npm
+    name: chalk
+    version: 3.0.0
+    direct: true
+    dev: false
+    source_file: tests/fixtures/yarn/berry/yarn.lock
+  - ecosystem: npm
+    name: semver
+    version: 7.5.4
+    direct: true
+    dev: false
+    source_file: tests/fixtures/yarn/berry/yarn.lock
+warnings: []

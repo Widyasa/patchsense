@@ -1423,38 +1423,24 @@ checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "patchsense"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "async-trait",
  "clap",
  "comfy-table",
+ "cvss",
+ "globset",
  "indicatif",
  "insta",
- "patchsense-core",
+ "jsonschema",
  "predicates",
+ "quick-xml",
+ "reqwest 0.13.5",
  "rmcp",
  "rusqlite",
  "schemars",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "wiremock",
-]
-
-[[package]]
-name = "patchsense-core"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "cvss",
- "globset",
- "insta",
- "jsonschema",
- "quick-xml",
- "reqwest 0.13.5",
- "rusqlite",
  "semver",
  "serde",
  "serde_json",
@@ -1463,6 +1449,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "wiremock",
 ]
 
 [[package]]

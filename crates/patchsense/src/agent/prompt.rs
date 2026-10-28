@@ -5,7 +5,7 @@
 //! oversized finding loses references, then summary text, before the prompt is
 //! hard-cut.
 
-use patchsense_core::model::{Finding, Report};
+use patchsense::model::{Finding, Report};
 use serde_json::json;
 
 /// Characters reserved for the prompt itself.
@@ -146,7 +146,7 @@ fn chars(text: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patchsense_core::model::{
+    use patchsense::model::{
         Advisory, BreakdownSignal, Ecosystem, EpssSignal, Finding, FindingSignals, KevSignal,
         Package, Report, ReportContext, Summary, Tier,
     };

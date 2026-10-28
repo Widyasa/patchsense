@@ -1,5 +1,0 @@
----
-source: crates/patchsense-core/src/lockfile/requirements.rs
-expression: parsed.warnings
----
-[]

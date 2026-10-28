@@ -1,0 +1,40 @@
+---
+source: crates/patchsense/src/lockfile/poetry.rs
+expression: parsed.packages
+---
+- ecosystem: PyPI
+  name: ipywidgets
+  version: 8.1.5
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/rich/poetry.lock
+- ecosystem: PyPI
+  name: markdown-it-py
+  version: 3.0.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/rich/poetry.lock
+- ecosystem: PyPI
+  name: mdurl
+  version: 0.1.2
+  direct: false
+  dev: false
+  source_file: tests/fixtures/pypi/rich/poetry.lock
+- ecosystem: PyPI
+  name: pygments
+  version: 2.18.0
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/rich/poetry.lock
+- ecosystem: PyPI
+  name: pytest
+  version: 7.4.4
+  direct: false
+  dev: true
+  source_file: tests/fixtures/pypi/rich/poetry.lock
+- ecosystem: PyPI
+  name: typing-extensions
+  version: 4.12.2
+  direct: true
+  dev: false
+  source_file: tests/fixtures/pypi/rich/poetry.lock
