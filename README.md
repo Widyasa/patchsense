@@ -157,6 +157,8 @@ MCP tools: `list_supported_lockfiles`, `scan_project`, `get_finding`, `get_fix_p
 
 Supported lockfiles: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `poetry.lock`, `requirements.txt`, `composer.lock`, `go.sum`, `pom.xml`, `Cargo.lock`. Requirements discovery also accepts `requirements-*.txt` (`requirements-dev.txt`), `requirements_*.txt` (`requirements_rag.txt`), `*.requirements.txt`, and any `.txt` file in a directory named `requirements`. The same paths work when passed explicitly. Matching ignores ASCII case. `-r`, `--requirement`, `-c`, and `--constraint` are read relative to the file that names them. A repeated name and version is kept once. A cycle or a missing include is a warning, not a failed scan. A remote include is skipped with a warning.
 
+Go findings are version matches on the module in `go.sum`. An advisory can name one package inside that module, such as `golang.org/x/crypto/openpgp` in GO-2026-5932, while the project only imports another package such as `golang.org/x/crypto/argon2`. A package-level import check is described in [`docs/go-import-reachability.md`](docs/go-import-reachability.md) and is not implemented.
+
 ## Spec
 
 The design source is [`docs/PRD.md`](docs/PRD.md). The task list is [`docs/TASKS.md`](docs/TASKS.md). Agent rules are [`AGENTS.md`](AGENTS.md).
