@@ -36,6 +36,7 @@ func TestLaunchFakeAndRealBinary(t *testing.T) {
 	script := []byte("#!/bin/sh\nif [ \"${1:-}\" = \"--exit\" ]; then exit \"$2\"; fi\nif [ \"${1:-}\" = \"--version\" ]; then echo fake-patchsense 0.1.0; exit 0; fi\nprintf 'args:%s\\n' \"$*\"\nexit 0\n")
 	srv, closeSrv := serveRelease(t, triple, script)
 	t.Cleanup(closeSrv)
+	t.Setenv("PATCHSENSE_BINARY", "")
 	t.Setenv("PATCHSENSE_RELEASE_BASE", srv.URL+"/releases/download")
 	t.Setenv("PATCHSENSE_TARGET", triple)
 	cache := t.TempDir()
@@ -78,6 +79,7 @@ func TestRealReleaseBinaryVersion(t *testing.T) {
 	triple := "x86_64-unknown-linux-gnu"
 	srv, closeSrv := serveRelease(t, triple, body)
 	t.Cleanup(closeSrv)
+	t.Setenv("PATCHSENSE_BINARY", "")
 	t.Setenv("PATCHSENSE_RELEASE_BASE", srv.URL+"/releases/download")
 	t.Setenv("PATCHSENSE_TARGET", triple)
 	t.Setenv("PATCHSENSE_CACHE_DIR", t.TempDir())
@@ -123,6 +125,7 @@ func TestChecksumMismatchIsNotCached(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
+	t.Setenv("PATCHSENSE_BINARY", "")
 	t.Setenv("PATCHSENSE_RELEASE_BASE", srv.URL+"/releases/download")
 	t.Setenv("PATCHSENSE_TARGET", triple)
 	cache := t.TempDir()
@@ -157,6 +160,7 @@ func TestGoInstallRunsReleaseBinary(t *testing.T) {
 	}
 	run := exec.Command(filepath.Join(gobin, "patchsense"))
 	run.Env = append(os.Environ(),
+		"PATCHSENSE_BINARY=",
 		"PATCHSENSE_RELEASE_BASE="+srv.URL+"/releases/download",
 		"PATCHSENSE_TARGET="+triple,
 		"PATCHSENSE_CACHE_DIR="+t.TempDir(),
@@ -236,4 +240,142 @@ func tarGz(t *testing.T, exe string, body []byte) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func TestPseudoVersionStillRequestsSourceRelease(t *testing.T) {
+	cases := []struct {
+		version string
+		pseudo  bool
+	}{
+		{"(devel)", false},
+		{"", false},
+		{"v0.1.0", false},
+		{"v0.1.0-rc.1", false},
+		{"v0.1.0+incompatible", false},
+		{"v0.0.0-20261028141100-abcdefabcdef", true},
+		{"v0.1.1-0.20261028141100-abcdefabcdef", true},
+		{"v0.1.0-rc.0.20261028141100-abcdefabcdef", true},
+	}
+	for _, tc := range cases {
+		if isPseudoVersion(tc.version) != tc.pseudo {
+			t.Errorf("isPseudoVersion(%q) = %v, want %v", tc.version, !tc.pseudo, tc.pseudo)
+		}
+	}
+}
+
+func TestMissingRelease404(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake launcher is a shell script")
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Setenv("PATCHSENSE_BINARY", "")
+	t.Setenv("PATCHSENSE_RELEASE_BASE", srv.URL+"/releases/download")
+	t.Setenv("PATCHSENSE_TARGET", "x86_64-unknown-linux-gnu")
+	cache := t.TempDir()
+	t.Setenv("PATCHSENSE_CACHE_DIR", cache)
+
+	errText, code := launchCapture(t, "--version")
+	if code == 0 {
+		t.Fatal("404 was treated as success")
+	}
+	assertNotPublished(t, errText)
+	if strings.Contains(errText, "v0.0.0-") {
+		t.Fatalf("devel build should not mention a pseudo-version: %s", errText)
+	}
+	matches, _ := filepath.Glob(filepath.Join(cache, "bin", patchsenseVersion, "*", "patchsense"))
+	if len(matches) != 0 {
+		t.Fatalf("404 left a cached binary: %v", matches)
+	}
+
+	prev := moduleVersion
+	moduleVersion = func() string { return "v0.0.0-20261028141100-abcdefabcdef" }
+	t.Cleanup(func() { moduleVersion = prev })
+	errText, code = launchCapture(t, "--version")
+	if code == 0 {
+		t.Fatal("pseudo-version 404 was treated as success")
+	}
+	assertNotPublished(t, errText)
+	if !strings.Contains(errText, "v0.0.0-20261028141100-abcdefabcdef") || !strings.Contains(errText, "pseudo-version") {
+		t.Fatalf("pseudo-version was not explained: %s", errText)
+	}
+	if !strings.Contains(errText, "/v"+patchsenseVersion+"/dist-manifest.json") {
+		t.Fatalf("pseudo-version did not request the source release: %s", errText)
+	}
+}
+
+func TestAsset404IsNotPublished(t *testing.T) {
+	triple := "x86_64-unknown-linux-gnu"
+	name := "patchsense-" + triple + ".tar.gz"
+	manifest := map[string]any{
+		"artifacts": map[string]any{
+			name: map[string]any{
+				"name":           name,
+				"kind":           "executable-zip",
+				"target_triples": []string{triple},
+				"checksums":      map[string]string{"sha256": strings.Repeat("ab", 32)},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/releases/download/v0.1.0/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(manifest)
+	})
+	mux.HandleFunc("/releases/download/v0.1.0/"+name, func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Setenv("PATCHSENSE_BINARY", "")
+	t.Setenv("PATCHSENSE_RELEASE_BASE", srv.URL+"/releases/download")
+	t.Setenv("PATCHSENSE_TARGET", triple)
+	t.Setenv("PATCHSENSE_CACHE_DIR", t.TempDir())
+	errText, code := launchCapture(t, "--version")
+	if code == 0 {
+		t.Fatal("missing archive was treated as success")
+	}
+	assertNotPublished(t, errText)
+	if !strings.Contains(errText, name) {
+		t.Fatalf("error did not name the missing archive: %s", errText)
+	}
+}
+
+func TestBinaryOverrideSkipsDownload(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake launcher is a shell script")
+	}
+	script := filepath.Join(t.TempDir(), "patchsense")
+	body := []byte("#!/bin/sh\nif [ \"${1:-}\" = \"--version\" ]; then echo override-patchsense; exit 0; fi\nexit 1\n")
+	if err := os.WriteFile(script, body, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATCHSENSE_BINARY", script)
+	t.Setenv("PATCHSENSE_RELEASE_BASE", "http://127.0.0.1:1")
+	out, code := launchCapture(t, "--version")
+	if code != 0 || out != "override-patchsense\n" {
+		t.Fatalf("override code=%d out=%q", code, out)
+	}
+	t.Setenv("PATCHSENSE_BINARY", filepath.Join(t.TempDir(), "missing"))
+	errText, code := launchCapture(t, "--version")
+	if code == 0 || !strings.Contains(errText, "PATCHSENSE_BINARY=") {
+		t.Fatalf("missing override code=%d out=%q", code, errText)
+	}
+}
+
+func assertNotPublished(t *testing.T, errText string) {
+	t.Helper()
+	for _, part := range []string{
+		"release v" + patchsenseVersion + " is not published yet",
+		"cargo install patchsense --locked",
+		"building from source",
+		"PATCHSENSE_BINARY=/path/to/patchsense",
+	} {
+		if !strings.Contains(errText, part) {
+			t.Fatalf("missing %q in:\n%s", part, errText)
+		}
+	}
 }

@@ -3,6 +3,7 @@
 # cache it, and exec it. Used by the Docker image. Does not compile Rust.
 #
 # version is the package version. It is not read from the environment.
+# PATCHSENSE_BINARY skips the download and runs the given binary.
 # PATCHSENSE_RELEASE_BASE overrides the download prefix (tests).
 # PATCHSENSE_CACHE_DIR overrides the cache directory.
 # PATCHSENSE_TARGET overrides target detection.
@@ -14,6 +15,13 @@ fail() {
   echo "patchsense: $*" >&2
   exit 1
 }
+
+if [ -n "${PATCHSENSE_BINARY:-}" ]; then
+  if [ ! -f "$PATCHSENSE_BINARY" ]; then
+    fail "PATCHSENSE_BINARY=$PATCHSENSE_BINARY does not exist"
+  fi
+  exec "$PATCHSENSE_BINARY" "$@"
+fi
 
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
@@ -74,10 +82,29 @@ prefix="$base/v$version"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-if ! curl --proto '=http,https' --tlsv1.2 -fsSL --retry 3 \
-  -o "$tmp/manifest.json" "$prefix/dist-manifest.json"; then
-  fail "download failed for $prefix/dist-manifest.json"
-fi
+missing_release() {
+  url=$1
+  printf '%s\n' \
+    "release v${version} is not published yet (${url} returned HTTP 404)." \
+    "Install another way until that GitHub Release exists:" \
+    "  cargo install patchsense --locked" \
+    "  building from source: cargo build --release -p patchsense" \
+    "Or set PATCHSENSE_BINARY=/path/to/patchsense"
+}
+
+fetch_to() {
+  url=$1
+  dest=$2
+  code=$(curl --proto '=http,https' --tlsv1.2 -sS -L --retry 3 --max-redirs 5 \
+    -o "$dest" -w '%{http_code}' "$url" || true)
+  case "$code" in
+    200) ;;
+    404) fail "$(missing_release "$url")" ;;
+    *) fail "download failed for $url: HTTP $code" ;;
+  esac
+}
+
+fetch_to "$prefix/dist-manifest.json" "$tmp/manifest.json"
 
 meta=$(jq -r --arg t "$triple" '
   [
@@ -99,10 +126,7 @@ case "$name" in
   */*|*..*) fail "refusing archive name $name" ;;
 esac
 
-if ! curl --proto '=http,https' --tlsv1.2 -fsSL --retry 3 \
-  -o "$tmp/archive.tar.gz" "$prefix/$name"; then
-  fail "download failed for $prefix/$name"
-fi
+fetch_to "$prefix/$name" "$tmp/archive.tar.gz"
 actual=$(sha256sum "$tmp/archive.tar.gz" | awk '{print $1}')
 if [ "$actual" != "$sha" ]; then
   fail "checksum mismatch for $name"

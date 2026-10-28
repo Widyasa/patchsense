@@ -9,6 +9,7 @@ declare(strict_types=1);
  *
  * PATCHSENSE_VERSION is the package version. It is not read from the environment,
  * so the downloaded tag always matches this package.
+ * PATCHSENSE_BINARY skips the download and runs the given binary.
  * PATCHSENSE_RELEASE_BASE overrides the release download prefix (tests).
  * PATCHSENSE_CACHE_DIR overrides the cache directory.
  * PATCHSENSE_TARGET overrides target detection (tests, or a wrong libc guess).
@@ -21,6 +22,13 @@ main($argv);
 
 function main(array $argv): void
 {
+    $override = getenv('PATCHSENSE_BINARY');
+    if (is_string($override) && $override !== '') {
+        if (!is_file($override)) {
+            fail("PATCHSENSE_BINARY={$override} does not exist");
+        }
+        run_binary($override, array_slice($argv, 1));
+    }
     [$triple, $exeName] = detect_target();
     $cache = cache_path($triple, $exeName);
     if (!is_file($cache)) {
@@ -33,6 +41,17 @@ function fail(string $message): void
 {
     fwrite(STDERR, "patchsense: {$message}\n");
     exit(1);
+}
+
+function missing_release(string $url): string
+{
+    $version = PATCHSENSE_VERSION;
+
+    return "release v{$version} is not published yet ({$url} returned HTTP 404).\n"
+        . "Install another way until that GitHub Release exists:\n"
+        . "  cargo install patchsense --locked\n"
+        . "  building from source: cargo build --release -p patchsense\n"
+        . 'Or set PATCHSENSE_BINARY=/path/to/patchsense';
 }
 
 /** @return array{0: string, 1: string} */
@@ -296,6 +315,9 @@ function http_download(string $url, string $dest): void
     fclose($fh);
     if ($ok !== true) {
         @unlink($dest);
+        if ($code === 404) {
+            fail(missing_release($url));
+        }
         $suffix = $error !== '' ? $error : 'HTTP ' . $code;
         fail("download failed for {$url}: {$suffix}");
     }

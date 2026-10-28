@@ -83,7 +83,7 @@ Local checks that already ran, and that do not need a tag: `dist plan`, `dist bu
 
 ## 7. Packagist and the Go module
 
-Do this after the `v0.1.0` GitHub Release has `dist-manifest.json` and the archives. `composer require` and `go install` can succeed before that, but the first run of the launcher downloads the archive and fails if it is missing.
+Do this after the `v0.1.0` GitHub Release has `dist-manifest.json` and the archives. `composer require` and `go install` can succeed before that. The first run then says release `v0.1.0` is not published yet. `PATCHSENSE_BINARY=/path/to/patchsense` runs a binary you already built and skips the download. `go install ...@latest` before the first tag is a pseudo-version (`v0.0.0-timestamp-commit`). It is not a release tag; the launcher still looks for `v0.1.0`, the version in the source. After the tag exists, install `@v0.1.0` or `@latest`.
 
 Packagist:
 
