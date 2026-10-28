@@ -16,8 +16,8 @@ SARIF sets `startLine` to the line the parser stored. Most lockfile parsers do n
 
 ## Offline cache
 
-`--offline` does not call the network. Every OSV query and advisory body has to already be in the SQLite cache and inside `[cache] ttl_hours_osv` (24 hours when the key is omitted). If any of those rows is missing or expired, the scan exits 2 and does not print a partial report. Fill the cache with a normal scan first.
+`--offline` does not call the network. Every OSV query and advisory body has to already be in the SQLite cache and inside `[cache] ttl_hours_osv` (24 hours when the key is omitted). A missing row exits 2. A row that is present but older than the TTL also exits 2, and the error names the age and the TTL. The scan does not print a partial report. Fill the cache with a normal scan first.
 
-EPSS and KEV use `ttl_hours_epss` and `ttl_hours_kev`. A missing row is a warning, and that signal counts as absent. A row that is present but older than its TTL is still used, and the warning names the age. The score does not drop because the row expired. `--strict-cache`, or `strict_cache = true` in the config, exits 2 instead of using that stale row.
+EPSS and KEV use `ttl_hours_epss` and `ttl_hours_kev`. A missing row is a warning, and that signal counts as absent. A row that is present but older than its TTL is still used, and the warning names the age. The score does not drop because the row expired. The same warning is written into the Markdown report and into GitHub and GitLab comments. `--strict-cache`, or `strict_cache = true` in the config, exits 2 when a row is missing or expired. A config-sourced error says to set `[cache] strict_cache = false`.
 
 An online scan reuses fresh cache rows and downloads again when a row is older than its TTL. `data_sources.*.from_cache` is true only when every row for that source came from the cache. `data_sources.osv.fetched_at` is the oldest stored fetch time in that case, not the clock of the current scan.

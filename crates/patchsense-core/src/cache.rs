@@ -170,6 +170,20 @@ impl Cache {
         }))
     }
 
+    /// Unix time of a stored advisory, ignoring TTL and `modified`.
+    ///
+    /// `None` means the id was never stored.
+    pub fn osv_document_fetched_at(&self, id: &str) -> Result<Option<i64>, CoreError> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT fetched_at FROM osv_vuln WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()
+        })
+    }
+
     /// Insert or replace an OSV document.
     pub fn put_osv(
         &self,
@@ -318,6 +332,25 @@ impl Cache {
         Ok(Some((refs, fetched_at)))
     }
 
+    /// Unix time of a stored `querybatch` row, ignoring TTL.
+    ///
+    /// `None` means the package was never stored.
+    pub fn osv_query_fetched_at(
+        &self,
+        ecosystem: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<Option<i64>, CoreError> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT fetched_at FROM osv_query WHERE ecosystem = ?1 AND name = ?2 AND version = ?3",
+                (ecosystem, name, version),
+                |row| row.get(0),
+            )
+            .optional()
+        })
+    }
+
     /// Insert or replace the `querybatch` ids for one package.
     pub fn put_osv_query(
         &self,
@@ -410,6 +443,32 @@ pub fn resolve_cache_db(input: CacheLocation<'_>) -> PathBuf {
 pub(crate) fn fresh(fetched_at: i64, now: i64, ttl: Duration) -> bool {
     let ttl_secs = i64::try_from(ttl.as_secs()).unwrap_or(i64::MAX);
     now.saturating_sub(fetched_at) < ttl_secs
+}
+
+/// Seconds from `fetched_at` to `now`. Never negative.
+pub(crate) fn row_age(fetched_at: i64, now: i64) -> i64 {
+    now.saturating_sub(fetched_at).max(0)
+}
+
+/// `2h`, `1h 5m`, `5m`, or `12s`.
+pub(crate) fn format_span(seconds: i64) -> String {
+    let seconds = seconds.max(0);
+    let hours = seconds / 3_600;
+    let minutes = (seconds % 3_600) / 60;
+    if hours > 0 && minutes > 0 {
+        format!("{hours}h {minutes}m")
+    } else if hours > 0 {
+        format!("{hours}h")
+    } else if minutes > 0 {
+        format!("{minutes}m")
+    } else {
+        format!("{seconds}s")
+    }
+}
+
+/// [`format_span`] for a TTL duration.
+pub(crate) fn format_ttl(ttl: Duration) -> String {
+    format_span(i64::try_from(ttl.as_secs()).unwrap_or(i64::MAX))
 }
 
 fn ensure_schema(conn: &Connection) -> Result<(), rusqlite::Error> {

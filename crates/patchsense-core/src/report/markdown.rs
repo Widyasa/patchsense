@@ -11,7 +11,12 @@ pub const EMPTY: &str = "No vulnerabilities";
 /// Render a comment. `top` limits the table and the folded details.
 pub fn render_markdown(report: &Report, top: usize) -> String {
     if report.findings.is_empty() {
-        return format!("{MARKER}\n{EMPTY}\n");
+        let warnings = warnings_block(report);
+        return if warnings.is_empty() {
+            format!("{MARKER}\n{EMPTY}\n")
+        } else {
+            format!("{MARKER}\n{EMPTY}\n\n{warnings}")
+        };
     }
     let shown: Vec<&Finding> = report.findings.iter().take(top).collect();
     let mut out = String::new();
@@ -21,6 +26,7 @@ pub fn render_markdown(report: &Report, top: usize) -> String {
         "| Tier | Count |\n| --- | ---: |\n| Critical | {} |\n| Review | {} |\n| Defer | {} |\n\n",
         report.summary.critical, report.summary.review, report.summary.defer
     ));
+    out.push_str(&warnings_block(report));
     out.push_str("## Findings\n\n");
     out.push_str(
         "| Score | Tier | Package | Version | Advisory |\n| ---: | --- | --- | --- | --- |\n",
@@ -50,6 +56,18 @@ pub fn render_markdown(report: &Report, top: usize) -> String {
     for finding in &shown {
         out.push_str(&detail(finding));
     }
+    out
+}
+
+fn warnings_block(report: &Report) -> String {
+    if report.warnings.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("## Warnings\n\n");
+    for warning in &report.warnings {
+        out.push_str(&format!("- {warning}\n"));
+    }
+    out.push('\n');
     out
 }
 
@@ -218,6 +236,23 @@ mod tests {
         assert!(text.contains("2 more findings are not shown"));
         assert!(text.contains("JSON or SARIF"));
         assert_eq!(text.matches("<details>").count(), 1);
+    }
+
+    #[test]
+    fn stale_warning_is_shown_above_the_findings() {
+        let mut item = report(vec![finding()]);
+        item.warnings.push(
+            "offline: cached KEV catalog 2026.10.24 is 2h old, past the 1h TTL; using the stale catalog"
+                .to_string(),
+        );
+        let text = render_markdown(&item, 20);
+        assert!(
+            text.contains("## Warnings\n\n- offline: cached KEV catalog"),
+            "{text}"
+        );
+        let warnings_at = text.find("## Warnings").expect("warnings");
+        let findings_at = text.find("## Findings").expect("findings");
+        assert!(warnings_at < findings_at, "{text}");
     }
 
     #[test]

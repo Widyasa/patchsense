@@ -215,6 +215,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_stale_cache_warning_is_in_the_comment() {
+        let report = parse_rendered_report(
+            r#"{"schema_version":1,"summary":{"packages_scanned":1,"findings":1,"by_tier":{"critical":1,"review":0,"defer":0},"max_score":100,"failed":true},"warnings":["offline: cached EPSS for CVE-2021-23337 is 2h old, past the 1h TTL; using the stale score"],"findings":[{"id":"GHSA-35jh-r3h4-6jhm","summary":"Command Injection in lodash","package":{"ecosystem":"npm","name":"lodash","version":"4.17.14"},"score":100,"tier":"critical"}]}"#,
+        )
+        .expect("parse");
+        let markdown = render_markdown(&report, 20);
+        assert!(markdown.contains("## Warnings"), "{markdown}");
+        assert!(
+            markdown.contains("cached EPSS for CVE-2021-23337 is 2h old"),
+            "{markdown}"
+        );
+    }
+
+    #[test]
     fn empty_rendered_report_becomes_the_empty_comment() {
         let report = parse_rendered_report(
             r#"{"schema_version":1,"summary":{"packages_scanned":0,"findings":0,"by_tier":{"critical":0,"review":0,"defer":0},"max_score":0,"failed":false},"findings":[]}"#,

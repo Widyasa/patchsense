@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use tokio::sync::Semaphore;
 
-use crate::cache::{Cache, CachedOsvRef};
+use crate::cache::{self, Cache, CachedOsvRef};
 use crate::error::CoreError;
 use crate::http::{join_url, HttpClient, HttpResponse};
 use crate::model::{Advisory, GoImport, Package, Severity};
@@ -311,6 +311,22 @@ async fn fetch_one_cached<C: HttpClient>(
         }
     }
     if fetch.offline {
+        if let Some(cache) = fetch.cache {
+            if let Some(fetched_at) = cache.osv_document_fetched_at(&vuln.id)? {
+                if !cache::fresh(fetched_at, fetch.now, fetch.ttl) {
+                    return Err(CoreError::OfflineCache {
+                        message: format!(
+                            "offline cache expired: advisory {} for {}@{} is {} old, past the {} TTL. Run a scan without --offline to refresh the cache",
+                            vuln.id,
+                            package.name,
+                            package.version,
+                            cache::format_span(cache::row_age(fetched_at, fetch.now)),
+                            cache::format_ttl(fetch.ttl)
+                        ),
+                    });
+                }
+            }
+        }
         return Err(CoreError::OfflineCache {
             message: format!(
                 "offline cache is missing advisory {} for {}@{}. Run a scan without --offline to fill the cache",
