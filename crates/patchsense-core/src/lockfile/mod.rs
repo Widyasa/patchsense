@@ -1,6 +1,7 @@
 //! Lockfile parsers and the registry that picks one from a file name.
 //!
-//! Parsers are pure: `&str` in, [`ParsedLockfile`] out. Adding an ecosystem
+//! Parsers are pure: `&str` in, [`ParsedLockfile`] out. The requirements parser
+//! also reads `-r` and `-c` includes from disk. Adding an ecosystem
 //! means a new type that implements [`LockfileParser`] and an entry in
 //! [`PARSERS`].
 

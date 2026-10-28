@@ -75,7 +75,7 @@ Publishing to crates.io, npm, PyPI, or Homebrew, and creating git tags or GitHub
 
 ## Add a lockfile parser
 
-Parsers are pure: file text in, a `ParsedLockfile` out. The registry is `crates/patchsense-core/src/lockfile/mod.rs`.
+Parsers are pure: file text in, a `ParsedLockfile` out. The requirements parser also reads `-r` and `-c` includes from disk, relative to the file that names them. The registry is `crates/patchsense-core/src/lockfile/mod.rs`.
 
 1. Add a module next to the existing ones (`npm.rs`, `pnpm.rs`, `yarn.rs`, `poetry.rs`, `requirements.rs`, `composer.rs`, `gosum.rs`, `maven.rs`, `cargo.rs`).
 2. Implement `LockfileParser` (`ecosystem`, `matches`, `parse`). `matches` looks at the file name. Requirements files also match `requirements-*.txt`, `requirements_*.txt`, `requirements.*.txt`, `*.requirements.txt`, and any `.txt` file in a directory named `requirements`.
