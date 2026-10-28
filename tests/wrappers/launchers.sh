@@ -6,17 +6,19 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$root"
 
-cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+# Launchers stay on the GitHub Release they download. The crate version
+# (0.1.2 is a crates.io docs release) can move ahead. Phase B bumps these
+# constants when that release tag is created.
+release_version=0.1.0
 php_version=$(sed -n "s/^const PATCHSENSE_VERSION = '\\(.*\\)';/\\1/p" bin/patchsense)
 composer_version=$(php -r 'echo json_decode(file_get_contents("composer.json"), true)["version"];')
 shell_version=$(sed -n 's/^version=//p' scripts/fetch-release.sh)
 go_version=$(sed -n 's/^const patchsenseVersion = "\(.*\)"$/\1/p' go/cmd/patchsense/main.go)
-if [ "$cargo_version" != "0.1.0" ] \
-  || [ "$php_version" != "$cargo_version" ] \
-  || [ "$composer_version" != "$cargo_version" ] \
-  || [ "$shell_version" != "$cargo_version" ] \
-  || [ "$go_version" != "$cargo_version" ]; then
-  echo "version pin mismatch cargo=$cargo_version php=$php_version composer=$composer_version shell=$shell_version go=$go_version" >&2
+if [ "$php_version" != "$release_version" ] \
+  || [ "$composer_version" != "$release_version" ] \
+  || [ "$shell_version" != "$release_version" ] \
+  || [ "$go_version" != "$release_version" ]; then
+  echo "version pin mismatch release=$release_version php=$php_version composer=$composer_version shell=$shell_version go=$go_version" >&2
   exit 1
 fi
 

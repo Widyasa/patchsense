@@ -18,13 +18,31 @@ import (
 	"testing"
 )
 
-func TestVersionMatchesCargoToml(t *testing.T) {
-	cargo, err := os.ReadFile(filepath.Join("..", "..", "..", "Cargo.toml"))
+func TestLauncherVersionStaysOnTheReleasePin(t *testing.T) {
+	// The crate version can move ahead of the launchers. 0.1.2 is a crates.io
+	// docs release. These constants still name GitHub Release v0.1.0 and are
+	// bumped with that tag, not with every crate version.
+	root := filepath.Join("..", "..", "..")
+	php, err := os.ReadFile(filepath.Join(root, "bin", "patchsense"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(cargo), `version = "`+patchsenseVersion+`"`) {
-		t.Fatalf("go launcher version %s is not the workspace version", patchsenseVersion)
+	shell, err := os.ReadFile(filepath.Join(root, "scripts", "fetch-release.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	composer, err := os.ReadFile(filepath.Join(root, "composer.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin := patchsenseVersion
+	if pin != "0.1.0" {
+		t.Fatalf("launcher pin = %s, want 0.1.0 until the GitHub Release tag", pin)
+	}
+	for _, body := range []string{string(php), string(shell), string(composer)} {
+		if !strings.Contains(body, pin) {
+			t.Fatalf("a launcher does not record release pin %s", pin)
+		}
 	}
 }
 

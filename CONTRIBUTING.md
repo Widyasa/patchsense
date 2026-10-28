@@ -32,7 +32,7 @@ cargo run -p patchsense -- --version
 cargo run -p patchsense -- scan --help
 ```
 
-`cargo run -p patchsense -- --version` prints `patchsense 0.1.1` at the current workspace version.
+`cargo run -p patchsense -- --version` prints `patchsense 0.1.2` at the current workspace version.
 
 ```bash
 cargo run -p patchsense -- scan examples/kev-log4shell
