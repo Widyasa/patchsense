@@ -204,3 +204,5 @@ fi
 rm -rf "$proj"
 
 echo "composer launcher ok"
+(cd "$root" && go test -count=1 ./go/cmd/patchsense)
+echo "go launcher ok"
