@@ -777,6 +777,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn requirements_variants_are_scanned_including_an_explicit_path() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::create_dir_all(dir.path().join("workers/chatbot")).expect("dir");
+        fs::create_dir_all(dir.path().join("requirements")).expect("dir");
+        let rag = dir.path().join("workers/chatbot/requirements-rag.txt");
+        fs::write(&rag, "requests==2.32.3\n").expect("rag");
+        fs::write(dir.path().join("requirements/base.txt"), "flask==3.0.3\n").expect("base");
+        fs::write(dir.path().join("notes.txt"), "requests==1.0.0\n").expect("notes");
+
+        let report = scan_path(&fake_osv(), "https://api.osv.dev", dir.path())
+            .await
+            .expect("directory scan");
+        let mut paths: Vec<&str> = report
+            .context
+            .lockfiles
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect();
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec![
+                "requirements/base.txt",
+                "workers/chatbot/requirements-rag.txt",
+            ]
+        );
+        assert!(report
+            .context
+            .lockfiles
+            .iter()
+            .all(|file| file.status == "ok" && file.ecosystem == "PyPI"));
+        assert_eq!(report.findings.len(), 0);
+
+        let explicit = scan_path(&fake_osv(), "https://api.osv.dev", &rag)
+            .await
+            .expect("explicit file");
+        assert_eq!(explicit.context.lockfiles.len(), 1);
+        assert_eq!(explicit.context.lockfiles[0].path, "requirements-rag.txt");
+        assert_eq!(explicit.context.lockfiles[0].status, "ok");
+        assert_eq!(explicit.context.lockfiles[0].packages, 1);
+        assert_eq!(explicit.context.lockfiles[0].ecosystem, "PyPI");
+    }
+
+    #[tokio::test]
     async fn empty_directory_does_not_call_osv() {
         let dir = tempfile::tempdir().expect("tempdir");
         let err = scan_path(&FakeHttp::forbid(), "https://api.osv.dev", dir.path())

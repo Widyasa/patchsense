@@ -141,7 +141,12 @@ mod tests {
             parser_for(Path::new("pkg/PACKAGE-LOCK.JSON")).expect("case-insensitive match");
         assert_eq!(parser.ecosystem(), Ecosystem::Npm);
         assert!(parser_for(Path::new("Cargo.toml")).is_none());
-        assert!(parser_for(Path::new("requirements-dev.txt")).is_none());
+        assert_eq!(
+            parser_for(Path::new("requirements-dev.txt")).map(|parser| parser.ecosystem()),
+            Some(Ecosystem::Pypi)
+        );
+        assert!(parser_for(Path::new("myrequirements.txt")).is_none());
+        assert!(parser_for(Path::new("requirements.txt.bak")).is_none());
         assert!(parser_for(Path::new("package-lock.json.bak")).is_none());
     }
 

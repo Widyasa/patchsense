@@ -78,7 +78,7 @@ Publishing to crates.io, npm, PyPI, or Homebrew, and creating git tags or GitHub
 Parsers are pure: file text in, a `ParsedLockfile` out. The registry is `crates/patchsense-core/src/lockfile/mod.rs`.
 
 1. Add a module next to the existing ones (`npm.rs`, `pnpm.rs`, `yarn.rs`, `poetry.rs`, `requirements.rs`, `composer.rs`, `gosum.rs`, `maven.rs`, `cargo.rs`).
-2. Implement `LockfileParser` (`ecosystem`, `matches`, `parse`). `matches` looks at the file name.
+2. Implement `LockfileParser` (`ecosystem`, `matches`, `parse`). `matches` looks at the file name. Requirements files also match `requirements-*.txt`, `requirements_*.txt`, `requirements.*.txt`, `*.requirements.txt`, and any `.txt` file in a directory named `requirements`.
 3. Register the type in the `PARSERS` slice and add the file name to `supported_file_names()`.
 4. If the ecosystem is new, add a variant to `Ecosystem` in `crates/patchsense-core/src/model.rs`. The serde name is the OSV ecosystem string.
 5. Put a real lockfile under `tests/fixtures/` and cover it with `insta` snapshots in the parser module. `crates/patchsense-core/tests/parser_robustness.rs` already runs every name from `supported_file_names()` through truncated fixtures and must keep passing.

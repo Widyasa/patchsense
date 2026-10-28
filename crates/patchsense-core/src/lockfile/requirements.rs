@@ -1,4 +1,11 @@
-//! Parser for pinned `requirements.txt` lines.
+//! Parser for pinned requirements files.
+//!
+//! Recognised names, compared case-insensitively:
+//!
+//! - `requirements.txt`
+//! - `requirements-*.txt`, `requirements_*.txt`, and `requirements.*.txt`
+//! - `*.requirements.txt`
+//! - any `.txt` file in a directory named `requirements`
 //!
 //! Only `name==version` is kept. Extras (`name[extra]`) and environment
 //! markers (`; ...`) are ignored. Comments, `-r`, `-e`, and other `-` options
@@ -11,7 +18,7 @@ use crate::error::CoreError;
 use crate::lockfile::{normalize_pypi_name, LockfileParser};
 use crate::model::{Ecosystem, Package, ParsedLockfile};
 
-/// Parser for `requirements.txt`.
+/// Parser for requirements files.
 pub struct RequirementsParser;
 
 impl LockfileParser for RequirementsParser {
@@ -20,9 +27,7 @@ impl LockfileParser for RequirementsParser {
     }
 
     fn matches(&self, path: &Path) -> bool {
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.eq_ignore_ascii_case("requirements.txt"))
+        is_requirements_file(path)
     }
 
     fn parse(&self, path: &Path, content: &str) -> Result<ParsedLockfile, CoreError> {
@@ -87,6 +92,31 @@ fn split_pin(line: &str) -> Option<(&str, &str)> {
     Some((name, version))
 }
 
+/// File names such as `requirements-dev.txt` and `app.requirements.txt`, plus
+/// any `.txt` file whose parent directory is named `requirements`.
+fn is_requirements_file(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    let lower = name.to_ascii_lowercase();
+    if !lower.ends_with(".txt") {
+        return false;
+    }
+    let stem = &lower[..lower.len() - 4];
+    if stem == "requirements"
+        || stem.starts_with("requirements-")
+        || stem.starts_with("requirements_")
+        || stem.starts_with("requirements.")
+        || stem.ends_with(".requirements")
+    {
+        return true;
+    }
+    path.parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|dir| dir.to_str())
+        .is_some_and(|dir| dir.eq_ignore_ascii_case("requirements"))
+}
+
 fn display_path(path: &Path) -> String {
     path.components()
         .map(|component| component.as_os_str().to_string_lossy())
@@ -97,6 +127,7 @@ fn display_path(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lockfile::parser_for;
     use std::fs;
     use std::path::PathBuf;
 
@@ -176,5 +207,79 @@ Friendly.Bard==0.1.0
             parsed.warnings,
             vec!["requirements.txt:4: line is not pinned, skipped".to_string()]
         );
+    }
+
+    #[test]
+    fn variant_names_match_and_unknown_txt_does_not() {
+        let accepted = [
+            "requirements.txt",
+            "REQUIREMENTS.TXT",
+            "requirements-dev.txt",
+            "requirements-rag.txt",
+            "workers/chatbot/requirements-rag.txt",
+            "requirements_rag.txt",
+            "requirements.dev.txt",
+            "app.requirements.txt",
+            "requirements/base.txt",
+            "Requirements/Foo.TXT",
+            "tests/fixtures/pypi/variants/requirements/base.txt",
+        ];
+        for path in accepted {
+            assert!(
+                parser_for(Path::new(path)).is_some(),
+                "expected a parser for {path}"
+            );
+        }
+        let rejected = [
+            "requirements.txt.bak",
+            "requirements-dev.txt.bak",
+            "myrequirements.txt",
+            "notes.txt",
+            "not-requirements/notes.txt",
+            "requirements/base.json",
+        ];
+        for path in rejected {
+            assert!(
+                parser_for(Path::new(path)).is_none(),
+                "did not expect a parser for {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn variant_fixtures_parse() {
+        let cases = [
+            (
+                "tests/fixtures/pypi/variants/requirements-dev.txt",
+                "pytest",
+                "8.3.2",
+            ),
+            (
+                "tests/fixtures/pypi/variants/requirements_rag.txt",
+                "langchain",
+                "0.2.16",
+            ),
+            (
+                "tests/fixtures/pypi/variants/app.requirements.txt",
+                "flask",
+                "3.0.3",
+            ),
+            (
+                "tests/fixtures/pypi/variants/requirements/base.txt",
+                "requests",
+                "2.32.3",
+            ),
+        ];
+        for (relative, name, version) in cases {
+            let parsed = parse_repo_file(relative);
+            assert_eq!(parsed.packages.len(), 1, "{relative}");
+            assert_eq!(parsed.packages[0].name, name, "{relative}");
+            assert_eq!(parsed.packages[0].version, version, "{relative}");
+            assert!(parsed.warnings.is_empty(), "{relative}");
+            assert!(
+                parser_for(Path::new(relative)).is_some(),
+                "explicit path {relative}"
+            );
+        }
     }
 }
