@@ -8,11 +8,19 @@
 //! - any `.txt` file in a directory named `requirements`
 //!
 //! Only `name==version` is kept. Extras (`name[extra]`) and environment
-//! markers (`; ...`) are ignored. Comments, `-r`, `-e`, and other `-` options
-//! are skipped. URLs are skipped. Any other non-empty line is reported as an
+//! markers (`; ...`) are ignored. Comments, `-e`, and other `-` options are
+//! skipped. URLs are skipped. Any other non-empty line is reported as an
 //! unpinned requirement with its 1-based line number.
+//!
+//! `-r`, `--requirement`, `-c`, and `--constraint` are read from disk,
+//! relative to the file that names them, and parsed the same way. A repeated
+//! name and version is kept once. A cycle is a warning. A missing include is
+//! a warning and does not fail the parse.
 
-use std::path::Path;
+use std::collections::HashSet;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 
 use crate::error::CoreError;
 use crate::lockfile::{normalize_pypi_name, LockfileParser};
@@ -35,15 +43,77 @@ impl LockfileParser for RequirementsParser {
     }
 }
 
+const MAX_INCLUDE_DEPTH: usize = 64;
+
 fn parse_requirements(path: &Path, content: &str) -> Result<ParsedLockfile, CoreError> {
-    let source = display_path(path);
     let mut packages = Vec::new();
     let mut warnings = Vec::new();
+    let mut stack = Vec::new();
+    walk_requirements(path, content, &mut stack, &mut packages, &mut warnings);
+    let mut seen = HashSet::new();
+    packages.retain(|package| seen.insert((package.name.clone(), package.version.clone())));
+    packages.sort_by(|left, right| {
+        (&left.name, &left.version, left.line).cmp(&(&right.name, &right.version, right.line))
+    });
+    Ok(ParsedLockfile {
+        ecosystem: Ecosystem::Pypi,
+        packages,
+        warnings,
+    })
+}
 
+fn walk_requirements(
+    path: &Path,
+    content: &str,
+    stack: &mut Vec<PathBuf>,
+    packages: &mut Vec<Package>,
+    warnings: &mut Vec<String>,
+) {
+    let id = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if stack.iter().any(|seen| seen == &id) {
+        warnings.push(format!("{}: include cycle, skipped", display_path(path)));
+        return;
+    }
+    if stack.len() >= MAX_INCLUDE_DEPTH {
+        warnings.push(format!(
+            "{}: include depth exceeded, skipped",
+            display_path(path)
+        ));
+        return;
+    }
+    stack.push(id);
+    let source = display_path(path);
     for (index, raw) in content.lines().enumerate() {
         let line_no = index + 1;
         let line = strip_comment(raw).trim();
         if line.is_empty() {
+            continue;
+        }
+        if let Some(include) = include_target(line) {
+            if include.contains("://") {
+                warnings.push(format!(
+                    "{source}:{line_no}: remote include {include} was skipped"
+                ));
+                continue;
+            }
+            let resolved = resolve_include(path, include);
+            match fs::read_to_string(&resolved) {
+                Ok(body) => {
+                    walk_requirements(&resolved, &body, stack, packages, warnings);
+                }
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                    warnings.push(format!(
+                        "{source}:{line_no}: include {} was not found, skipped",
+                        display_path(&resolved)
+                    ));
+                }
+                Err(err) => {
+                    warnings.push(format!(
+                        "{source}:{line_no}: include {} could not be read ({err}), skipped",
+                        display_path(&resolved)
+                    ));
+                }
+            }
             continue;
         }
         if line.starts_with('-') || line.contains("://") || line.starts_with("git+") {
@@ -63,15 +133,61 @@ fn parse_requirements(path: &Path, content: &str) -> Result<ParsedLockfile, Core
             None => warnings.push(format!("{source}:{line_no}: line is not pinned, skipped")),
         }
     }
+    stack.pop();
+}
 
-    packages.sort_by(|left, right| {
-        (&left.name, &left.version, left.line).cmp(&(&right.name, &right.version, right.line))
-    });
-    Ok(ParsedLockfile {
-        ecosystem: Ecosystem::Pypi,
-        packages,
-        warnings,
-    })
+fn include_target(line: &str) -> Option<&str> {
+    for (long, short) in [("--requirement", "-r"), ("--constraint", "-c")] {
+        if let Some(rest) = line.strip_prefix(long) {
+            return option_path(rest, true);
+        }
+        if let Some(rest) = line.strip_prefix(short) {
+            return option_path(rest, false);
+        }
+    }
+    None
+}
+
+fn option_path(rest: &str, long: bool) -> Option<&str> {
+    let rest = if long {
+        if let Some(rest) = rest.strip_prefix('=') {
+            rest
+        } else if rest.starts_with(char::is_whitespace) {
+            rest
+        } else {
+            return None;
+        }
+    } else if rest.is_empty() {
+        return None;
+    } else {
+        rest
+    };
+    let token = rest.split_whitespace().next()?;
+    let token = unquote(token);
+    if token.is_empty() {
+        None
+    } else {
+        Some(token)
+    }
+}
+
+fn unquote(token: &str) -> &str {
+    let bytes = token.as_bytes();
+    if token.len() >= 2 {
+        let quote = bytes[0];
+        if (quote == b'"' || quote == b'\'') && bytes[token.len() - 1] == quote {
+            return &token[1..token.len() - 1];
+        }
+    }
+    token
+}
+
+fn resolve_include(from: &Path, include: &str) -> PathBuf {
+    let include = Path::new(include);
+    if include.is_absolute() {
+        return include.to_path_buf();
+    }
+    from.parent().unwrap_or(Path::new("")).join(include)
 }
 
 fn strip_comment(line: &str) -> &str {
@@ -182,9 +298,10 @@ Some_Package[security]==1.2.3 ; python_version >= \"3.8\"
 https://example.com/foo.whl
 Friendly.Bard==0.1.0
 ";
-        let parsed = RequirementsParser
-            .parse(Path::new("requirements.txt"), content)
-            .expect("parse");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("requirements.txt");
+        fs::write(&path, content).expect("write");
+        let parsed = RequirementsParser.parse(&path, content).expect("parse");
         let pairs: Vec<(&str, &str, Option<u32>)> = parsed
             .packages
             .iter()
@@ -203,9 +320,101 @@ Friendly.Bard==0.1.0
                 ("some-package", "1.2.3", Some(5)),
             ]
         );
+        assert_eq!(parsed.warnings.len(), 2, "{:?}", parsed.warnings);
+        assert!(
+            parsed.warnings[0].contains(":2: include ")
+                && parsed.warnings[0].contains("other.txt")
+                && parsed.warnings[0].ends_with("was not found, skipped"),
+            "{:?}",
+            parsed.warnings
+        );
+        assert!(
+            parsed.warnings[1].ends_with(":4: line is not pinned, skipped"),
+            "{:?}",
+            parsed.warnings
+        );
+    }
+
+    #[test]
+    fn includes_are_resolved_deduped_and_cycles_warn() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/pypi/includes/requirements.txt");
+        let content = fs::read_to_string(&root).expect("fixture");
+        let parsed = RequirementsParser
+            .parse(&root, &content)
+            .expect("parse fixture");
+        let pairs: Vec<(&str, &str)> = parsed
+            .packages
+            .iter()
+            .map(|package| (package.name.as_str(), package.version.as_str()))
+            .collect();
         assert_eq!(
-            parsed.warnings,
-            vec!["requirements.txt:4: line is not pinned, skipped".to_string()]
+            pairs,
+            vec![
+                ("flask", "3.0.3"),
+                ("langchain", "0.2.16"),
+                ("requests", "2.32.3"),
+            ]
+        );
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        let requests = parsed
+            .packages
+            .iter()
+            .find(|package| package.name == "requests")
+            .expect("requests");
+        assert!(
+            requests.source_file.ends_with("includes/requirements.txt"),
+            "{}",
+            requests.source_file
+        );
+        let langchain = parsed
+            .packages
+            .iter()
+            .find(|package| package.name == "langchain")
+            .expect("langchain");
+        assert!(langchain.source_file.ends_with("requirements-rag.txt"));
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let a = dir.path().join("a.txt");
+        let b = dir.path().join("b.txt");
+        fs::write(&a, "alpha==1.0.0\n-r b.txt\n").expect("a");
+        fs::write(&b, "beta==2.0.0\n--requirement a.txt\n").expect("b");
+        let a_body = fs::read_to_string(&a).expect("read a");
+        let cycled = RequirementsParser.parse(&a, &a_body).expect("cycle");
+        let names: Vec<&str> = cycled.packages.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["alpha", "beta"]);
+        assert!(
+            cycled
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("include cycle")),
+            "{:?}",
+            cycled.warnings
+        );
+
+        let missing = dir.path().join("missing-parent.txt");
+        let missing_body = "kept==1.2.3\n-c gone.txt\n--requirement=https://example.com/req.txt\n";
+        fs::write(&missing, missing_body).expect("missing");
+        let parsed = RequirementsParser
+            .parse(&missing, missing_body)
+            .expect("missing include");
+        assert_eq!(parsed.packages.len(), 1);
+        assert_eq!(parsed.packages[0].name, "kept");
+        assert!(
+            parsed
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("was not found")),
+            "{:?}",
+            parsed.warnings
+        );
+        assert!(
+            parsed
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("remote include")),
+            "{:?}",
+            parsed.warnings
         );
     }
 

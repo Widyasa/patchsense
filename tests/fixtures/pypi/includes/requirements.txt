@@ -1,0 +1,4 @@
+# parent
+requests==2.32.3
+-r rag/requirements-rag.txt
+-c constraints.txt
