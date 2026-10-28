@@ -2,15 +2,15 @@
 
 `patchsense scan .` reads lockfiles, matches them to [OSV](https://osv.dev), and ranks each advisory with EPSS, CISA KEV, and CVSS. The table says which findings are **Critical**, which are **Review**, and which are **Defer**.
 
-![Scan of log4j-core 2.14.1 showing CVE-2021-44228 as Critical](docs/demo.gif)
+![Scan of log4j-core 2.14.1 showing CVE-2021-44228 as Critical](https://raw.githubusercontent.com/Widyasa/patchsense/master/docs/demo.gif)
 
-License: `MIT OR Apache-2.0` ([`LICENSE-MIT`](LICENSE-MIT), [`LICENSE-APACHE`](LICENSE-APACHE)).
+License: `MIT OR Apache-2.0` ([`LICENSE-MIT`](https://github.com/Widyasa/patchsense/blob/master/LICENSE-MIT), [`LICENSE-APACHE`](https://github.com/Widyasa/patchsense/blob/master/LICENSE-APACHE)).
 
 Repository: [github.com/Widyasa/patchsense](https://github.com/Widyasa/patchsense).
 
 ## Install
 
-`0.1.0` is the crates.io release. Widya publishes it with `cargo publish` ([`docs/release-checklist.md`](docs/release-checklist.md)). There is no git tag and no GitHub Release for 0.1.0.
+`0.1.0` is the crates.io release. Widya publishes it with `cargo publish` ([`docs/release-checklist.md`](https://github.com/Widyasa/patchsense/blob/master/docs/release-checklist.md)). There is no git tag and no GitHub Release for 0.1.0.
 
 ### Available for 0.1.0
 
@@ -91,7 +91,7 @@ patchsense scan . --no-color \
   --format markdown --output patchsense-report.md
 ```
 
-The demo GIF scans [`examples/kev-log4shell`](examples/kev-log4shell), which pins `log4j-core` 2.14.1 (CVE-2021-44228, CISA KEV). [`examples/php2shell-demo`](examples/php2shell-demo) pins PHP 8.3.35. On 25 Oct 2026 OSV returned no advisory for that Packagist `php` package, so the GIF uses Log4Shell.
+The demo GIF scans [`examples/kev-log4shell`](https://github.com/Widyasa/patchsense/tree/master/examples/kev-log4shell), which pins `log4j-core` 2.14.1 (CVE-2021-44228, CISA KEV). [`examples/php2shell-demo`](https://github.com/Widyasa/patchsense/tree/master/examples/php2shell-demo) pins PHP 8.3.35. On 25 Oct 2026 OSV returned no advisory for that Packagist `php` package, so the GIF uses Log4Shell.
 
 ## How the score works
 
@@ -109,7 +109,7 @@ Default tiers: **Critical** at 70 and above, **Review** at 40 and above, otherwi
 
 ## GitHub Actions
 
-The composite action's default path downloads a GitHub Release installer. That installer is coming in v0.1.1, not with the crates.io 0.1.0 publish. Until then, build the binary and pass `binary-path` (see [`.github/workflows/self-test.yml`](.github/workflows/self-test.yml)):
+The composite action's default path downloads a GitHub Release installer. That installer is coming in v0.1.1, not with the crates.io 0.1.0 publish. Until then, build the binary and pass `binary-path` (see [`.github/workflows/self-test.yml`](https://github.com/Widyasa/patchsense/blob/master/.github/workflows/self-test.yml)):
 
 ```yaml
 - uses: actions/checkout@v4
@@ -133,7 +133,7 @@ After v0.1.1 is released, the composite action installs the published binary. Th
 
 ## GitLab CI
 
-Copy [`templates/gitlab/patchsense.gitlab-ci.yml`](templates/gitlab/patchsense.gitlab-ci.yml) or include it. The installer URL in that template depends on a GitHub Release, which is coming in v0.1.1. A pipeline that reaches the install step fails until that release exists. Details: [`docs/gitlab.md`](docs/gitlab.md).
+Copy [`templates/gitlab/patchsense.gitlab-ci.yml`](https://github.com/Widyasa/patchsense/blob/master/templates/gitlab/patchsense.gitlab-ci.yml) or include it. The installer URL in that template depends on a GitHub Release, which is coming in v0.1.1. A pipeline that reaches the install step fails until that release exists. Details: [`docs/gitlab.md`](https://github.com/Widyasa/patchsense/blob/master/docs/gitlab.md).
 
 ```yaml
 include:
@@ -179,12 +179,12 @@ MCP tools: `list_supported_lockfiles`, `scan_project`, `get_finding`, `get_fix_p
 
 Supported lockfiles: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `poetry.lock`, `requirements.txt`, `composer.lock`, `go.sum`, `pom.xml`, `Cargo.lock`. Requirements discovery also accepts `requirements-*.txt` (`requirements-dev.txt`), `requirements_*.txt` (`requirements_rag.txt`), `*.requirements.txt`, and any `.txt` file in a directory named `requirements`. The same paths work when passed explicitly. Matching ignores ASCII case. `-r`, `--requirement`, `-c`, and `--constraint` are read relative to the file that names them. A repeated name and version is kept once. A cycle or a missing include is a warning, not a failed scan. A remote include is skipped with a warning.
 
-Go findings are version matches on the module in `go.sum`. When the advisory lists `affected[].ecosystem_specific.imports`, PatchSense also reads `.go` import blocks under the scan root. An exact path matches, and so does a subpackage (`golang.org/x/crypto/openpgp/packet` matches `golang.org/x/crypto/openpgp`). Aliases, dot imports, blank imports, and build-tag files count. `vendor/`, `testdata/`, and `*_test.go` are skipped unless `[scan.go_imports]` turns a skip off. If none of the listed paths are imported, the finding stays and gains the note `imported package not seen` in the table, JSON (`import_note`), SARIF, markdown, PR and MR comments, `--explain`, and MCP. The score and tier do not change: a missing import is not proof the package is unused. An advisory with no imports data is reported exactly as before. Details are in [`docs/go-import-reachability.md`](docs/go-import-reachability.md).
+Go findings are version matches on the module in `go.sum`. When the advisory lists `affected[].ecosystem_specific.imports`, PatchSense also reads `.go` import blocks under the scan root. An exact path matches, and so does a subpackage (`golang.org/x/crypto/openpgp/packet` matches `golang.org/x/crypto/openpgp`). Aliases, dot imports, blank imports, and build-tag files count. `vendor/`, `testdata/`, and `*_test.go` are skipped unless `[scan.go_imports]` turns a skip off. If none of the listed paths are imported, the finding stays and gains the note `imported package not seen` in the table, JSON (`import_note`), SARIF, markdown, PR and MR comments, `--explain`, and MCP. The score and tier do not change: a missing import is not proof the package is unused. An advisory with no imports data is reported exactly as before. Details are in [`docs/go-import-reachability.md`](https://github.com/Widyasa/patchsense/blob/master/docs/go-import-reachability.md).
 
 ## Spec
 
-The design source is [`docs/PRD.md`](docs/PRD.md). The task list is [`docs/TASKS.md`](docs/TASKS.md). Known gaps are [`docs/limitations.md`](docs/limitations.md). Agent rules are [`AGENTS.md`](AGENTS.md).
+The design source is [`docs/PRD.md`](https://github.com/Widyasa/patchsense/blob/master/docs/PRD.md). The task list is [`docs/TASKS.md`](https://github.com/Widyasa/patchsense/blob/master/docs/TASKS.md). Known gaps are [`docs/limitations.md`](https://github.com/Widyasa/patchsense/blob/master/docs/limitations.md). Agent rules are [`AGENTS.md`](https://github.com/Widyasa/patchsense/blob/master/AGENTS.md).
 
 ## Contributing
 
-Contributions are licensed under `MIT OR Apache-2.0`, the same as the project. Fork the repository, branch from `master`, and open a pull request that says `Closes #N`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the toolchain, the local checks, and how to add a lockfile parser or a report format.
+Contributions are licensed under `MIT OR Apache-2.0`, the same as the project. Fork the repository, branch from `master`, and open a pull request that says `Closes #N`. [CONTRIBUTING.md](https://github.com/Widyasa/patchsense/blob/master/CONTRIBUTING.md) covers the toolchain, the local checks, and how to add a lockfile parser or a report format.

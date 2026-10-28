@@ -4,7 +4,7 @@ Two phases. Phase A publishes `0.1.0` to crates.io only. Phase B publishes the b
 
 Do not push `v0.1.0` or `v0` in Phase A. Those tags are created in Phase B, pointing at the v0.1.1 commit. Nothing in this repository has been tagged or published.
 
-The version in the workspace is `0.1.0`. `CHANGELOG.md` has `## [0.1.0] - YYYY-MM-DD` as a placeholder. Replace that placeholder on the day of the publish. Do not invent the date before then.
+The version in the workspace is `0.1.0`. `CHANGELOG.md` has `## [0.1.0] - 2026-10-28`. If the publish moves to another calendar day, change that date before `cargo publish`. Do not tag the commit.
 
 ## Phase A — v0.1.0, crates.io only
 
@@ -28,9 +28,10 @@ Core first, then the CLI. Publish order is the same.
 
 Checked on 2026-10-28 against this tree, before `patchsense-core` 0.1.0 exists on crates.io:
 
-- `cargo publish --dry-run -p patchsense-core` packaged 65 files, 538.9KiB (117.7KiB compressed), verified the crate, and stopped with `aborting upload due to dry run`.
-- `cargo package --list -p patchsense` listed 33 files: the CLI sources, tests, README, and lockfile.
-- `cargo publish --dry-run -p patchsense` and `cargo package --no-verify -p patchsense` both fail with `no matching package named patchsense-core` (searched the crates.io index). That is expected. The CLI depends on `patchsense-core` version `0.1.0` with a path, and Cargo rewrites that path to the registry version before it writes the `.crate`. `--no-verify` does not skip the rewrite. Repeat the CLI dry-run after core is on the index (step A4). A failure before that is not a metadata bug.
+- `cargo package --list -p patchsense-core` lists 67 files, including `LICENSE-MIT`, `LICENSE-APACHE`, and `README.md`.
+- `cargo package --list -p patchsense` lists 35 files, including `LICENSE-MIT`, `LICENSE-APACHE`, and `README.md`.
+- `cargo publish --dry-run -p patchsense-core` verifies the crate and stops with `aborting upload due to dry run`. Repeat it on the merged master before the real publish.
+- `cargo package --no-verify -p patchsense` writes the `.crate` (35 files). `cargo publish --dry-run -p patchsense` still fails with `no matching package named patchsense-core` until core 0.1.0 is on the index. The CLI depends on `patchsense-core` version `0.1.0` with a path, and the publish dry-run rewrites that path to the registry. Repeat the CLI dry-run after step A4. A failure before that is not a metadata bug.
 
 Metadata on both crates, inherited from the workspace unless noted:
 
@@ -47,7 +48,7 @@ Metadata on both crates, inherited from the workspace unless noted:
 | categories | `patchsense-core`: `development-tools`. `patchsense`: `command-line-utilities`, `development-tools` |
 | description | core: library for lockfile parsing, OSV matching, and priority scoring. CLI: prioritize vulnerabilities from lockfiles using OSV, EPSS, and CISA KEV |
 | include / exclude | unset. Cargo's default file set. No path outside the crate directory is pulled in except the README, which Cargo copies into the package |
-| license files | `LICENSE-MIT` and `LICENSE-APACHE` stay at the repo root. They are not inside either crate tarball. crates.io uses the SPDX `license` field. This does not block publish |
+| license files | `LICENSE-MIT` and `LICENSE-APACHE` are symlinked into each crate directory. `cargo package` follows the links and stores both files in each `.crate`. The SPDX `license` field stays `MIT OR Apache-2.0` |
 
 `patchsense-core` description and categories are set on that crate, not only inherited.
 
@@ -60,9 +61,9 @@ cargo info patchsense
 
 npm and PyPI name checks belong to Phase B. They are not part of this publish.
 
-### A2. Set the changelog date
+### A2. Confirm the changelog date
 
-In `CHANGELOG.md`, replace `## [0.1.0] - YYYY-MM-DD` with the calendar day of the publish, for example `## [0.1.0] - 2026-10-28`. Commit that on `master` before `cargo publish`. Do not tag that commit.
+`CHANGELOG.md` already says `## [0.1.0] - 2026-10-28`. If the publish is a different calendar day, change that heading on `master` first. Do not tag that commit.
 
 ### A3. Log in
 
