@@ -1,0 +1,41 @@
+{
+  "id": "GO-2026-5932",
+  "modified": "2026-10-28T00:00:00Z",
+  "summary": "Vulnerable packages in golang.org/x/crypto/openpgp",
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "Go",
+        "name": "golang.org/x/crypto"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            { "introduced": "0" },
+            { "fixed": "0.45.0" }
+          ]
+        }
+      ],
+      "ecosystem_specific": {
+        "imports": [
+          {
+            "path": "golang.org/x/crypto/openpgp",
+            "symbols": ["ReadMessage"]
+          },
+          { "path": "golang.org/x/crypto/openpgp/packet" },
+          { "path": "golang.org/x/crypto/openpgp/armor" }
+        ]
+      }
+    },
+    {
+      "package": {
+        "ecosystem": "npm",
+        "name": "not-this-package"
+      },
+      "ecosystem_specific": {
+        "imports": [{ "path": "golang.org/x/crypto/argon2" }]
+      }
+    }
+  ]
+}

@@ -26,13 +26,17 @@ pub fn render_markdown(report: &Report, top: usize) -> String {
         "| Score | Tier | Package | Version | Advisory |\n| ---: | --- | --- | --- | --- |\n",
     );
     for finding in &shown {
+        let advisory = match &finding.import_note {
+            Some(note) => format!("{} ({note})", finding.advisory.id),
+            None => finding.advisory.id.clone(),
+        };
         out.push_str(&format!(
             "| {} | {} | {} | {} | {} |\n",
             finding.score,
             finding.tier.label(),
             finding.package.name,
             finding.package.version,
-            finding.advisory.id
+            advisory
         ));
     }
     out.push('\n');
@@ -75,8 +79,13 @@ fn detail(finding: &Finding) -> String {
         .as_ref()
         .map(|item| format!("\n**{}:** {}\n", item.disclaimer, item.text))
         .unwrap_or_default();
+    let note = finding
+        .import_note
+        .as_ref()
+        .map(|note| format!("{note}\n\n"))
+        .unwrap_or_default();
     format!(
-        "<details>\n<summary>{id} {name}@{version} — score {score} ({tier})</summary>\n\n{summary}\n\n{breakdown}\n{links}{explanation}</details>\n\n",
+        "<details>\n<summary>{id} {name}@{version} — score {score} ({tier})</summary>\n\n{summary}\n\n{note}{breakdown}\n{links}{explanation}</details>\n\n",
         id = finding.advisory.id,
         name = finding.package.name,
         version = finding.package.version,
@@ -105,6 +114,7 @@ mod tests {
                 database_specific_severity: None,
                 references: vec!["https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm".to_string()],
                 fixed_versions: vec!["4.17.21".to_string()],
+                imports: Vec::new(),
             },
             package: Package {
                 ecosystem: Ecosystem::Npm,
@@ -130,6 +140,7 @@ mod tests {
                 }),
                 ..FindingSignals::default()
             },
+            import_note: None,
         }
     }
 

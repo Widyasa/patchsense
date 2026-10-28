@@ -18,6 +18,7 @@ First release. The date is filled in when the `v0.1.0` tag is created. Tagging a
 
 ### Added
 
+- Go findings keep `affected[].ecosystem_specific.imports` (`path` and `symbols`). When those paths are present and none of them are imported from the project's `.go` files, the finding stays and carries the note `imported package not seen`. The score and tier do not change. Advisories with no imports data are unchanged. `vendor/`, `testdata/`, and `*_test.go` are skipped by default (`[scan.go_imports]`).
 - Requirements discovery accepts `requirements-*.txt`, `requirements_*.txt`, `requirements.*.txt`, `*.requirements.txt`, and `requirements/*.txt`, including when one of those paths is passed explicitly.
 - Requirements files follow `-r` and `-c` includes relative to the including file. Cycles and duplicate pins collapse. A missing include is a warning.
 - Composer package `widyasa/patchsense`. `vendor/bin/patchsense` downloads the matching GitHub Release binary, checks sha256, and runs it. No Rust toolchain is required.

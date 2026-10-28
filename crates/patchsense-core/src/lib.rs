@@ -7,6 +7,7 @@ pub mod config;
 pub mod discovery;
 pub mod enrich;
 pub mod error;
+pub mod go_imports;
 pub mod http;
 pub mod lockfile;
 pub mod model;
@@ -16,7 +17,9 @@ pub mod scan;
 pub mod score;
 
 pub use error::CoreError;
-pub use model::{Advisory, Ecosystem, Finding, Package, ParsedLockfile, Report, Severity, Tier};
+pub use model::{
+    Advisory, Ecosystem, Finding, GoImport, Package, ParsedLockfile, Report, Severity, Tier,
+};
 
 /// Crate version, shared with the `patchsense` binary.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

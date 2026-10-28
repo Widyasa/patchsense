@@ -117,30 +117,7 @@ impl McpServer {
         Parameters(params): Parameters<FindingParams>,
     ) -> Result<String, String> {
         let finding = find_one(&params.id, params.path.as_deref()).await?;
-        let cvss = finding
-            .signals
-            .cvss
-            .as_ref()
-            .map(|item| json!({ "base_score": item.base_score, "vector": item.vector, "source": item.source }));
-        let body = json!({
-            "id": finding.advisory.id,
-            "summary": finding.advisory.summary,
-            "aliases": finding.advisory.aliases,
-            "fixed_versions": finding.advisory.fixed_versions,
-            "references": finding.advisory.references,
-            "cves": finding.signals.cves,
-            "cvss": cvss,
-            "epss": finding.signals.epss,
-            "kev": finding.signals.kev,
-            "score": finding.score,
-            "tier": finding.tier.label(),
-            "score_breakdown": finding.signals.breakdown,
-            "package": {
-                "ecosystem": finding.package.ecosystem.as_osv_str(),
-                "name": finding.package.name,
-                "version": finding.package.version,
-            },
-        });
+        let body = finding_json(&finding);
         Ok(serde_json::to_string_pretty(&body).unwrap_or_else(|_| "{}".to_string()))
     }
 
@@ -241,6 +218,11 @@ async fn scan_project_at(
         ignore: loaded.config.ignore.clone(),
         epss_base_url: epss_base_url(),
         kev_feed_url: kev_feed_url(),
+        go_imports: patchsense_core::go_imports::GoImportFilter {
+            skip_vendor: loaded.config.scan.go_imports.skip_vendor,
+            skip_testdata: loaded.config.scan.go_imports.skip_testdata,
+            skip_tests: loaded.config.scan.go_imports.skip_tests,
+        },
     };
     let client = ReqwestClient::new().map_err(|err| err.to_string())?;
     scan_with(&client, &osv_base_url(), path, &options)
@@ -400,6 +382,36 @@ fn manifest_hint(ecosystem: &str, name: &str, version: &str) -> String {
     }
 }
 
+/// JSON body for the `get_finding` tool.
+fn finding_json(finding: &Finding) -> serde_json::Value {
+    let cvss = finding.signals.cvss.as_ref().map(|item| {
+        json!({ "base_score": item.base_score, "vector": item.vector, "source": item.source })
+    });
+    let mut body = json!({
+        "id": finding.advisory.id,
+        "summary": finding.advisory.summary,
+        "aliases": finding.advisory.aliases,
+        "fixed_versions": finding.advisory.fixed_versions,
+        "references": finding.advisory.references,
+        "cves": finding.signals.cves,
+        "cvss": cvss,
+        "epss": finding.signals.epss,
+        "kev": finding.signals.kev,
+        "score": finding.score,
+        "tier": finding.tier.label(),
+        "score_breakdown": finding.signals.breakdown,
+        "package": {
+            "ecosystem": finding.package.ecosystem.as_osv_str(),
+            "name": finding.package.name,
+            "version": finding.package.version,
+        },
+    });
+    if let Some(note) = &finding.import_note {
+        body["import_note"] = json!(note);
+    }
+    body
+}
+
 /// Plain-text score explanation from the stored breakdown and default weights.
 pub(crate) fn explain_finding(finding: &Finding) -> String {
     let score = config::ScoreSection::default();
@@ -436,6 +448,10 @@ pub(crate) fn explain_finding(finding: &Finding) -> String {
     } else {
         lines.push("score has not been calculated".to_string());
     }
+    if let Some(note) = &finding.import_note {
+        lines.push(note.clone());
+        lines.push("The score is unchanged. This is not proof the package is unused.".to_string());
+    }
     lines.join("\n")
 }
 
@@ -456,6 +472,7 @@ mod tests {
                 database_specific_severity: None,
                 references: Vec::new(),
                 fixed_versions: vec!["2.0.0".to_string()],
+                imports: Vec::new(),
             },
             package: Package {
                 ecosystem: Ecosystem::Npm,
@@ -481,6 +498,7 @@ mod tests {
                 }),
                 ..FindingSignals::default()
             },
+            import_note: None,
         }
     }
 
@@ -510,6 +528,23 @@ mod tests {
         assert!(!text.contains("GHSA-cap-0050"));
         assert!(text.contains("\"packages_scanned\": 7"));
         assert!(text.contains("\"schema_version\": 1"));
+    }
+
+    #[test]
+    fn explain_and_get_finding_include_the_import_note() {
+        let mut row = finding(1);
+        row.import_note = Some("imported package not seen".to_string());
+        row.score = 20;
+        let explained = explain_finding(&row);
+        assert!(explained.contains("imported package not seen"));
+        assert!(explained.contains("The score is unchanged"));
+        assert!(explained.contains("score 20"));
+        let body = finding_json(&row);
+        assert_eq!(body["import_note"], "imported package not seen");
+        assert_eq!(body["score"], 20);
+        let text = present_scan(&report(vec![row]), 0);
+        assert!(text.contains("imported package not seen"));
+        assert!(text.contains("\"import_note\": \"imported package not seen\""));
     }
 
     #[test]

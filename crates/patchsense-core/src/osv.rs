@@ -14,7 +14,7 @@ use tokio::sync::Semaphore;
 use crate::cache::{Cache, CachedOsvRef};
 use crate::error::CoreError;
 use crate::http::{join_url, HttpClient, HttpResponse};
-use crate::model::{Advisory, Package, Severity};
+use crate::model::{Advisory, GoImport, Package, Severity};
 
 /// Maximum number of packages in one `POST /v1/querybatch` body.
 pub const OSV_BATCH_SIZE: usize = 1000;
@@ -407,7 +407,61 @@ pub fn advisory_from_json(url: &str, body: &str, package: &Package) -> Result<Ad
         database_specific_severity,
         references,
         fixed_versions,
+        imports: imports_for(&doc, package),
     })
+}
+
+/// Import paths from affected entries that match `package`.
+///
+/// Only the Go ecosystem is read. Paths are deduped and symbols for the same
+/// path are merged. Other ecosystems, and Go entries with no `imports` list,
+/// contribute nothing.
+fn imports_for(doc: &Value, package: &Package) -> Vec<GoImport> {
+    if package.ecosystem != crate::model::Ecosystem::Go {
+        return Vec::new();
+    }
+    let Some(affected) = doc["affected"].as_array() else {
+        return Vec::new();
+    };
+    let mut by_path: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for entry in affected {
+        if !affected_matches(entry, package) {
+            continue;
+        }
+        let Some(imports) = entry["ecosystem_specific"]["imports"].as_array() else {
+            continue;
+        };
+        for item in imports {
+            let Some(path) = item["path"]
+                .as_str()
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+            else {
+                continue;
+            };
+            let symbols = by_path.entry(path.to_string()).or_default();
+            let Some(listed) = item["symbols"].as_array() else {
+                continue;
+            };
+            for symbol in listed {
+                if let Some(name) = symbol
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                {
+                    symbols.insert(name.to_string());
+                }
+            }
+        }
+    }
+    by_path
+        .into_iter()
+        .map(|(path, symbols)| GoImport {
+            path,
+            symbols: symbols.into_iter().collect(),
+        })
+        .collect()
 }
 
 fn fixed_versions_for(doc: &Value, package: &Package) -> Vec<String> {
@@ -637,7 +691,44 @@ mod tests {
             && item.score == "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H"));
         assert_eq!(advisory.fixed_versions, vec!["4.17.21".to_string()]);
         assert_eq!(advisory.database_specific_severity.as_deref(), Some("HIGH"));
+        assert!(advisory.imports.is_empty());
         insta::assert_yaml_snapshot!("lodash_advisory", advisory);
+
+        let go_body = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/osv/go/GO-2026-5932.json"),
+        )
+        .expect("go fixture");
+        let go_package = Package {
+            ecosystem: Ecosystem::Go,
+            name: "golang.org/x/crypto".to_string(),
+            version: "v0.31.0".to_string(),
+            ..package("golang.org/x/crypto")
+        };
+        let go_advisory = advisory_from_json("fixture", &go_body, &go_package).expect("go");
+        assert_eq!(
+            go_advisory
+                .imports
+                .iter()
+                .map(|item| item.path.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "golang.org/x/crypto/openpgp",
+                "golang.org/x/crypto/openpgp/armor",
+                "golang.org/x/crypto/openpgp/packet",
+            ]
+        );
+        assert_eq!(
+            go_advisory.imports[0].symbols,
+            vec!["ReadMessage".to_string()]
+        );
+        let plain = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/osv/go/GO-2099-0001.json"),
+        )
+        .expect("plain fixture");
+        let plain_advisory = advisory_from_json("fixture", &plain, &go_package).expect("plain");
+        assert!(plain_advisory.imports.is_empty());
 
         let fixed = lodash_package("4.17.21");
         let parsed = advisory_from_json("fixture", &fs::read_to_string(&path).unwrap(), &fixed)

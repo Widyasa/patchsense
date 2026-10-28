@@ -72,14 +72,19 @@ fn result(finding: &Finding) -> Value {
         .next()
         .unwrap_or(finding.package.source_file.as_str());
     let line = finding.package.line.unwrap_or(1).max(1);
+    let mut text = format!(
+        "{}@{}: {} (score {})",
+        finding.package.name, finding.package.version, finding.advisory.summary, finding.score
+    );
+    if let Some(note) = &finding.import_note {
+        text.push(' ');
+        text.push_str(note);
+    }
     json!({
         "ruleId": finding.advisory.id,
         "level": level(finding.tier),
         "message": {
-            "text": format!(
-                "{}@{}: {} (score {})",
-                finding.package.name, finding.package.version, finding.advisory.summary, finding.score
-            )
+            "text": text
         },
         "locations": [{
             "physicalLocation": {
@@ -129,6 +134,7 @@ mod tests {
                 database_specific_severity: None,
                 references: Vec::new(),
                 fixed_versions: vec!["4.17.21".to_string()],
+                imports: Vec::new(),
             },
             package: Package {
                 ecosystem: Ecosystem::Npm,
@@ -143,6 +149,7 @@ mod tests {
             tier,
             score,
             signals: FindingSignals::default(),
+            import_note: None,
         }
     }
 

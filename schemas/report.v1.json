@@ -282,7 +282,8 @@
               }
             }
           ]
-        }
+        },
+        "import_note": { "type": "string" }
       }
     }
   }

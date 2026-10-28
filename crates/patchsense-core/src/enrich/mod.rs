@@ -300,6 +300,7 @@ mod tests {
             database_specific_severity: None,
             references: Vec::new(),
             fixed_versions: Vec::new(),
+            imports: Vec::new(),
         }
     }
 

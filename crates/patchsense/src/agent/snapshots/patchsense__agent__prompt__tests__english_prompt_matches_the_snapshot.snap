@@ -6,6 +6,7 @@ You explain dependency vulnerability findings. Answer in English.
 For each finding: one paragraph on impact, then one remediation step.
 Do not invent versions. Quote only fixed versions and links present in the data.
 If a finding has no fixed version, say that no fix version is available.
+If import_note is "imported package not seen", say the listed Go package was not found in the project's .go imports. The score is unchanged, and the note is not proof the package is unused.
 
 Findings: 1 of 1
 

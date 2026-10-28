@@ -78,10 +78,14 @@ fn vulnerability(finding: &Finding) -> Value {
     if let Some(direct) = finding.package.direct {
         location["dependency"]["direct"] = json!(direct);
     }
+    let description = match &finding.import_note {
+        Some(note) => format!("{}\n\n{note}", finding.advisory.summary),
+        None => finding.advisory.summary.clone(),
+    };
     let mut vuln = json!({
         "id": fingerprint(finding),
         "name": finding.advisory.summary,
-        "description": finding.advisory.summary,
+        "description": description,
         "severity": severity(finding.tier),
         "identifiers": identifiers,
         "location": location
@@ -155,6 +159,7 @@ mod tests {
                     database_specific_severity: None,
                     references: Vec::new(),
                     fixed_versions: vec!["4.17.21".to_string()],
+                    imports: Vec::new(),
                 },
                 package: Package {
                     ecosystem: Ecosystem::Npm,
@@ -169,6 +174,7 @@ mod tests {
                 tier: Tier::Defer,
                 score: 37,
                 signals: FindingSignals::default(),
+                import_note: None,
             }],
             warnings: Vec::new(),
             summary: Summary {

@@ -122,6 +122,19 @@ pub struct Severity {
     pub score: String,
 }
 
+/// One Go package named by `affected[].ecosystem_specific.imports`.
+///
+/// `symbols` is stored when OSV sent it. The import check matches `path`
+/// only. An empty list means the advisory did not name symbols.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoImport {
+    /// Import path, for example `golang.org/x/crypto/openpgp`.
+    pub path: String,
+    /// Function or method names inside that package, when OSV listed them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<String>,
+}
+
 /// Advisory detail relevant to triage.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Advisory {
@@ -139,6 +152,10 @@ pub struct Advisory {
     pub references: Vec<String>,
     /// Fixed versions that apply to the installed package.
     pub fixed_versions: Vec<String>,
+    /// Go import paths from the matching affected entry. Empty for other
+    /// ecosystems and for advisories that do not list imports.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub imports: Vec<GoImport>,
 }
 
 /// Priority bucket. The variant name is the JSON value; [`Tier::label`] is the table text.
@@ -179,6 +196,12 @@ pub struct Finding {
     /// CVSS, EPSS, KEV, and the score breakdown. Empty until enrichment runs.
     #[serde(default)]
     pub signals: FindingSignals,
+    /// Set when a Go advisory listed import paths and none were found.
+    ///
+    /// The score and tier are unchanged. Absent when the advisory has no
+    /// import data, or when one of the paths was imported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub import_note: Option<String>,
 }
 
 /// Scan output. [`crate::report::render_json`] turns this into PRD §8.
@@ -501,6 +524,7 @@ mod tests {
             database_specific_severity: Some("HIGH".to_string()),
             references: vec!["https://nvd.nist.gov/vuln/detail/CVE-2021-23337".to_string()],
             fixed_versions: vec!["4.17.21".to_string()],
+            imports: Vec::new(),
         };
         let parsed = ParsedLockfile {
             ecosystem: Ecosystem::Npm,
@@ -513,6 +537,7 @@ mod tests {
             tier: Tier::Defer,
             score: 0,
             signals: FindingSignals::default(),
+            import_note: None,
         };
         let report = Report {
             schema_version: 1,
@@ -540,5 +565,23 @@ mod tests {
         assert_eq!(restored.findings[0].advisory.id, "GHSA-35jh-r3h4-6jhm");
         assert_eq!(restored.findings[0].package.name, "lodash");
         assert_eq!(restored.findings[0].tier.label(), "Defer");
+        assert!(restored.findings[0].advisory.imports.is_empty());
+        assert!(restored.findings[0].import_note.is_none());
+    }
+
+    #[test]
+    fn older_advisory_json_without_imports_still_parses() {
+        let advisory: Advisory = serde_json::from_str(
+            r#"{"id":"GO-1","aliases":[],"summary":"s","severity":[],"database_specific_severity":null,"references":[],"fixed_versions":[]}"#,
+        )
+        .expect("advisory");
+        assert!(advisory.imports.is_empty());
+        let finding: Finding = serde_json::from_str(
+            r#"{"advisory":{"id":"GO-1","aliases":[],"summary":"s","severity":[],"database_specific_severity":null,"references":[],"fixed_versions":[]},"package":{"ecosystem":"Go","name":"golang.org/x/crypto","version":"v0.1.0","direct":null,"dev":false,"source_file":"go.sum"},"tier":"defer"}"#,
+        )
+        .expect("finding");
+        assert!(finding.import_note.is_none());
+        assert!(finding.advisory.imports.is_empty());
+        assert_eq!(finding.score, 0);
     }
 }
