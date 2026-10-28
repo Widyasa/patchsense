@@ -1,0 +1,19 @@
+---
+source: crates/patchsense/src/lockfile/yarn.rs
+expression: parsed
+---
+ecosystem: npm
+packages:
+  - ecosystem: npm
+    name: "@babel/code-frame"
+    version: 7.0.0
+    direct: true
+    dev: false
+    source_file: tests/fixtures/yarn/prettier/yarn.lock
+  - ecosystem: npm
+    name: "@babel/highlight"
+    version: 7.16.10
+    direct: false
+    dev: false
+    source_file: tests/fixtures/yarn/prettier/yarn.lock
+warnings: []

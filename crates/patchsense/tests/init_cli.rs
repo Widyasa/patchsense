@@ -1,8 +1,8 @@
 //! `patchsense init` in a temporary directory.
 
 use assert_cmd::Command;
-use patchsense_core::config::{parse_config_str, FailOn};
-use patchsense_core::model::Ecosystem;
+use patchsense::config::{parse_config_str, FailOn};
+use patchsense::model::Ecosystem;
 use predicates::prelude::*;
 
 #[test]

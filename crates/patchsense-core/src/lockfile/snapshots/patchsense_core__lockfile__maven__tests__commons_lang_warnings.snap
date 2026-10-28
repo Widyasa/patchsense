@@ -1,5 +1,0 @@
----
-source: crates/patchsense-core/src/lockfile/maven.rs
-expression: parsed.warnings
----
-- "tests/fixtures/maven/commons-lang/pom.xml:41: skipped org.junit.jupiter:junit-jupiter version `(missing)` (parent BOM or dependencyManagement)"

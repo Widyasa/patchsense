@@ -3,7 +3,7 @@
 use anyhow::Context;
 use serde_json::{json, Value};
 
-use patchsense_core::http::{HttpClient, HttpResponse};
+use patchsense::http::{HttpClient, HttpResponse};
 
 use super::{contains_marker, CommentOutcome};
 
@@ -121,8 +121,8 @@ fn ensure_success(response: &HttpResponse, action: &str) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patchsense_core::http::{FakeHttp, HttpResponse};
-    use patchsense_core::report::markdown::MARKER;
+    use patchsense::http::{FakeHttp, HttpResponse};
+    use patchsense::report::markdown::MARKER;
 
     fn target() -> GitLabTarget {
         GitLabTarget {

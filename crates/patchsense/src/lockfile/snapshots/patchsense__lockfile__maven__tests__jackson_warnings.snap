@@ -1,0 +1,7 @@
+---
+source: crates/patchsense/src/lockfile/maven.rs
+expression: parsed.warnings
+---
+- "tests/fixtures/maven/jackson-core/pom.xml:70: skipped org.junit.vintage:junit-vintage-engine version `(missing)` (parent BOM or dependencyManagement)"
+- "tests/fixtures/maven/jackson-core/pom.xml:75: skipped org.junit.jupiter:junit-jupiter version `(missing)` (parent BOM or dependencyManagement)"
+- "tests/fixtures/maven/jackson-core/pom.xml:80: skipped org.assertj:assertj-core version `(missing)` (parent BOM or dependencyManagement)"

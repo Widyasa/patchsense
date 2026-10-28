@@ -3,7 +3,7 @@
 use anyhow::Context;
 use serde_json::{json, Value};
 
-use patchsense_core::http::{HttpClient, HttpResponse};
+use patchsense::http::{HttpClient, HttpResponse};
 
 use super::{contains_marker, CommentOutcome};
 
@@ -147,8 +147,8 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use patchsense_core::http::FakeHttp;
-    use patchsense_core::report::markdown::MARKER;
+    use patchsense::http::FakeHttp;
+    use patchsense::report::markdown::MARKER;
 
     fn target() -> GitHubTarget {
         GitHubTarget {

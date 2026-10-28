@@ -1,0 +1,125 @@
+---
+source: crates/patchsense/src/report/json.rs
+expression: value
+---
+{
+  "config": {
+    "fail_on": "critical",
+    "thresholds": {
+      "critical": 70.0,
+      "review": 40.0
+    },
+    "weights": {
+      "cvss": 20.0,
+      "direct": 10.0,
+      "epss": 25.0,
+      "fix_available": 10.0,
+      "kev": 35.0
+    }
+  },
+  "data_sources": {
+    "epss": {
+      "date": "2026-10-24",
+      "from_cache": true
+    },
+    "kev": {
+      "catalog_version": "2026.10.23",
+      "from_cache": true
+    },
+    "osv": {
+      "fetched_at": "<redacted>",
+      "from_cache": false
+    }
+  },
+  "explain": {
+    "agent": null,
+    "status": "not_requested"
+  },
+  "findings": [
+    {
+      "aliases": [
+        "CVE-2021-23337"
+      ],
+      "cves": [
+        "CVE-2021-23337"
+      ],
+      "cvss": {
+        "base_score": 7.2,
+        "source": "osv",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H",
+        "version": "3.1"
+      },
+      "epss": {
+        "date": "2026-10-24",
+        "percentile": 0.78,
+        "score": 0.0123
+      },
+      "explanation": null,
+      "fixed_versions": [
+        "4.17.21"
+      ],
+      "id": "GHSA-35jh-r3h4-6jhm",
+      "ignored": false,
+      "kev": null,
+      "package": {
+        "dev": false,
+        "direct": true,
+        "ecosystem": "npm",
+        "name": "lodash",
+        "version": "4.17.15"
+      },
+      "references": [
+        "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm",
+        "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
+      ],
+      "score": 37,
+      "score_breakdown": {
+        "cvss": 14.4,
+        "direct": 10.0,
+        "epss": 3.075,
+        "fix_available": 10.0,
+        "kev": 0.0,
+        "total_weight": 100.0
+      },
+      "source_file": "package-lock.json",
+      "summary": "Command Injection in lodash",
+      "tier": "defer",
+      "tier_label": "Defer"
+    }
+  ],
+  "generated_at": "<redacted>",
+  "ignored": [
+    {
+      "expires": "2027-01-31",
+      "id": "GHSA-xxxx-xxxx-xxxx",
+      "package": "minimist@1.2.5",
+      "reason": "Hanya di script build"
+    }
+  ],
+  "lockfiles": [
+    {
+      "ecosystem": "npm",
+      "packages": 2,
+      "path": "package-lock.json",
+      "status": "ok"
+    }
+  ],
+  "schema_version": 1,
+  "summary": {
+    "by_tier": {
+      "critical": 0,
+      "defer": 1,
+      "review": 0
+    },
+    "failed": false,
+    "findings": 1,
+    "max_score": 37,
+    "packages_scanned": 2
+  },
+  "target": ".",
+  "tool": {
+    "name": "patchsense",
+    "version": "0.1.1"
+  },
+  "warnings": []
+}

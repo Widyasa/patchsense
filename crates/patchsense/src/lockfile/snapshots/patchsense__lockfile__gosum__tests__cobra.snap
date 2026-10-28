@@ -1,0 +1,43 @@
+---
+source: crates/patchsense/src/lockfile/gosum.rs
+expression: parsed
+---
+ecosystem: Go
+packages:
+  - ecosystem: Go
+    name: github.com/cpuguy83/go-md2man/v2
+    version: v2.0.3
+    direct: true
+    dev: false
+    source_file: tests/fixtures/go/cobra/go.sum
+  - ecosystem: Go
+    name: github.com/inconshreveable/mousetrap
+    version: v1.1.0
+    direct: true
+    dev: false
+    source_file: tests/fixtures/go/cobra/go.sum
+  - ecosystem: Go
+    name: github.com/russross/blackfriday/v2
+    version: v2.1.0
+    direct: false
+    dev: false
+    source_file: tests/fixtures/go/cobra/go.sum
+  - ecosystem: Go
+    name: github.com/spf13/pflag
+    version: v1.0.5
+    direct: true
+    dev: false
+    source_file: tests/fixtures/go/cobra/go.sum
+  - ecosystem: Go
+    name: gopkg.in/check.v1
+    version: v0.0.0-20161208181325-20d25e280405
+    direct: false
+    dev: false
+    source_file: tests/fixtures/go/cobra/go.sum
+  - ecosystem: Go
+    name: gopkg.in/yaml.v3
+    version: v3.0.1
+    direct: true
+    dev: false
+    source_file: tests/fixtures/go/cobra/go.sum
+warnings: []

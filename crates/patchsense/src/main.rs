@@ -15,14 +15,14 @@ use anyhow::Context;
 use clap::Parser;
 use rmcp::ServiceExt;
 
-use patchsense_core::cache::{self, resolve_cache_db, Cache, CacheLocation};
-use patchsense_core::config::{self, ExplainAgent, FailOn, FlagInput, LoadRequest};
-use patchsense_core::enrich::epss::epss_base_url;
-use patchsense_core::enrich::kev::kev_feed_url;
-use patchsense_core::http::{osv_base_url, ReqwestClient};
-use patchsense_core::model::{Ecosystem, Report};
-use patchsense_core::report::{render_gitlab, render_json, render_markdown, render_sarif};
-use patchsense_core::scan::{scan_with, ScanOptions};
+use patchsense::cache::{self, resolve_cache_db, Cache, CacheLocation};
+use patchsense::config::{self, ExplainAgent, FailOn, FlagInput, LoadRequest};
+use patchsense::enrich::epss::epss_base_url;
+use patchsense::enrich::kev::kev_feed_url;
+use patchsense::http::{osv_base_url, ReqwestClient};
+use patchsense::model::{Ecosystem, Report};
+use patchsense::report::{render_gitlab, render_json, render_markdown, render_sarif};
+use patchsense::scan::{scan_with, ScanOptions};
 
 use crate::cli::{CacheCommand, Cli, Command, ReportFormat};
 
@@ -104,7 +104,7 @@ async fn try_main() -> anyhow::Result<ExitCode> {
                 ignore: loaded.config.ignore.clone(),
                 epss_base_url: epss_base_url(),
                 kev_feed_url: kev_feed_url(),
-                go_imports: patchsense_core::go_imports::GoImportFilter {
+                go_imports: patchsense::go_imports::GoImportFilter {
                     skip_vendor: loaded.config.scan.go_imports.skip_vendor,
                     skip_testdata: loaded.config.scan.go_imports.skip_testdata,
                     skip_tests: loaded.config.scan.go_imports.skip_tests,

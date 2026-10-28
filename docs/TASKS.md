@@ -5,7 +5,7 @@ Cara memakai:
 - Jangan mulai tugas yang dependensinya belum selesai.
 - Centang `[x]` hanya bila semua kriteria selesai terpenuhi dan `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, dan `cargo test --workspace` lolos.
 - Rujukan spesifikasi: [`PRD.md`](PRD.md) (nomor bagian ditulis sebagai §). Aturan kerja: [`AGENTS.md`](../AGENTS.md).
-- Path modul mengikuti PRD §10.2. `core/` = `crates/patchsense-core/src/`, `cli/` = `crates/patchsense/src/`.
+- Path modul mengikuti PRD §10.2. Sejak 0.1.1 satu crate: library dan biner sama-sama di `crates/patchsense/src/` (`src/lib.rs` dan `src/main.rs`). Teks tugas di bawah ini yang menyebut `patchsense-core` adalah catatan saat tugas itu dikerjakan.
 
 Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesai. **Dep** = dependensi.
 
@@ -137,7 +137,7 @@ Legenda: **File** = file/modul yang disentuh. **Selesai bila** = kriteria selesa
 
 - [x] **W2-T9 Tes properti parser (robustness)**
   - Deskripsi: tes bahwa setiap parser tidak panic untuk input acak/terpotong (pakai potongan fixture yang dipotong di berbagai titik; tanpa dependency fuzzing baru).
-  - File: `crates/patchsense-core/tests/parser_robustness.rs`
+  - File: `crates/patchsense/tests/parser_robustness.rs`
   - Selesai bila: tes lolos untuk 9 parser.
   - Dep: W2-T8
 

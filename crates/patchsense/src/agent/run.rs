@@ -7,8 +7,8 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use patchsense_core::config::ExplainAgent;
-use patchsense_core::model::{Explanation, Report};
+use patchsense::config::ExplainAgent;
+use patchsense::model::{Explanation, Report};
 
 use super::{find_binary, AgentAdapter, ClaudeAdapter, CodexAdapter, CursorAdapter};
 
