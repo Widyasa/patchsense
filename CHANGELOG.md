@@ -7,6 +7,7 @@ All notable changes to PatchSense are documented here. The format follows [Keep 
 ### Changed
 
 - Docs-focused READMEs. crates.io shows `crates/patchsense/README.md` (`cargo install` only, with a link back to GitHub for other methods). The repository README uses the same structure and documents cargo plus the npm, PyPI, Composer, Go, Homebrew, and Docker wrappers. Prebuilt-binary channels wait for the first GitHub Release.
+- GitHub Release `v0.1.2` is the first binary release. The Composer, Go, and Docker launchers request `v0.1.2`. Release archives are `.tar.gz` on every target, including Windows, because every launcher extracts gzip tarballs.
 
 ## [0.1.1]
 

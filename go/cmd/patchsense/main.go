@@ -4,7 +4,7 @@
 // patchsenseVersion is the package version recorded in source. It is not read
 // from the environment, so the downloaded tag always matches this package.
 // A `go install ...@latest` before any git tag is a pseudo-version. That
-// module version is not a release tag; the launcher still requests v0.1.0.
+// module version is not a release tag; the launcher still requests v0.1.2.
 // PATCHSENSE_BINARY skips the download and runs the given binary.
 // PATCHSENSE_RELEASE_BASE overrides the release download prefix (tests).
 // PATCHSENSE_CACHE_DIR overrides the cache directory.
@@ -16,7 +16,7 @@ import (
 	"os"
 )
 
-const patchsenseVersion = "0.1.0"
+const patchsenseVersion = "0.1.2"
 
 func main() {
 	code, err := launch(os.Args[1:])

@@ -6,10 +6,9 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$root"
 
-# Launchers stay on the GitHub Release they download. The crate version
-# (0.1.2 is a crates.io docs release) can move ahead. Phase B bumps these
-# constants when that release tag is created.
-release_version=0.1.0
+# Launchers stay on the GitHub Release they download (v0.1.2). The crate
+# version can move ahead. Bump these constants with each release tag.
+release_version=0.1.2
 php_version=$(sed -n "s/^const PATCHSENSE_VERSION = '\\(.*\\)';/\\1/p" bin/patchsense)
 composer_version=$(php -r 'echo json_decode(file_get_contents("composer.json"), true)["version"];')
 shell_version=$(sed -n 's/^version=//p' scripts/fetch-release.sh)
@@ -41,7 +40,7 @@ write_manifest() {
   archive=$1
   sha=$(sha256sum "$archive" | awk '{print $1}')
   name=$(basename "$archive")
-  cat > "$stage/releases/download/v0.1.0/dist-manifest.json" <<EOF
+  cat > "$stage/releases/download/v0.1.2/dist-manifest.json" <<EOF
 {
   "artifacts": {
     "$name": {
@@ -61,8 +60,8 @@ pack_binary() {
   mkdir -p "$work/patchsense-x86_64-unknown-linux-gnu"
   cp "$src" "$work/patchsense-x86_64-unknown-linux-gnu/patchsense"
   chmod 0755 "$work/patchsense-x86_64-unknown-linux-gnu/patchsense"
-  mkdir -p "$stage/releases/download/v0.1.0"
-  archive="$stage/releases/download/v0.1.0/patchsense-x86_64-unknown-linux-gnu.tar.gz"
+  mkdir -p "$stage/releases/download/v0.1.2"
+  archive="$stage/releases/download/v0.1.2/patchsense-x86_64-unknown-linux-gnu.tar.gz"
   tar -C "$work" -czf "$archive" patchsense-x86_64-unknown-linux-gnu
   rm -rf "$work"
   write_manifest "$archive"
@@ -73,7 +72,7 @@ start_server() {
   server_pid=$!
   i=0
   while [ "$i" -lt 50 ]; do
-    if curl -fsS "http://127.0.0.1:$port/releases/download/v0.1.0/dist-manifest.json" >/dev/null 2>&1; then
+    if curl -fsS "http://127.0.0.1:$port/releases/download/v0.1.2/dist-manifest.json" >/dev/null 2>&1; then
       return 0
     fi
     i=$((i + 1))
@@ -174,7 +173,7 @@ echo "$offline_err" | grep -q "download failed" || {
 start_server
 python3 - <<PY
 import json
-p = "$stage/releases/download/v0.1.0/dist-manifest.json"
+p = "$stage/releases/download/v0.1.2/dist-manifest.json"
 data = json.load(open(p))
 for art in data["artifacts"].values():
     art["checksums"]["sha256"] = "0" * 64
@@ -217,7 +216,7 @@ if [ -x "$root/target/release/patchsense" ]; then
   real_cache=$(mktemp -d)
   export PATCHSENSE_CACHE_DIR="$real_cache"
   real=$(php "$root/bin/patchsense" --version)
-  if [ "$real" != "patchsense 0.1.0" ]; then
+  if [ "$real" != "patchsense 0.1.2" ]; then
     echo "real binary version: $real" >&2
     exit 1
   fi
@@ -229,7 +228,7 @@ proj=$(mktemp -d)
   export COMPOSER_DISABLE_NETWORK=1
   composer init --name=test/app --no-interaction --quiet
   composer config repositories.patchsense "{\"type\":\"path\",\"url\":\"$root\",\"options\":{\"symlink\":false}}"
-  composer require --dev widyasa/patchsense:0.1.0 --no-interaction --no-progress
+  composer require --dev widyasa/patchsense:0.1.2 --no-interaction --no-progress
 )
 export PATCHSENSE_CACHE_DIR="$cache"
 vendor_out=$("$proj/vendor/bin/patchsense" --version)
@@ -275,7 +274,7 @@ python3 -m http.server "$port404" --bind 127.0.0.1 --directory "$empty_stage" >"
 server404=$!
 i=0
 while [ "$i" -lt 50 ]; do
-  code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port404/releases/download/v0.1.0/dist-manifest.json" || true)
+  code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port404/releases/download/v0.1.2/dist-manifest.json" || true)
   if [ "$code" = "404" ]; then
     break
   fi
