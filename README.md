@@ -24,25 +24,25 @@ cargo build --release -p patchsense
 cargo run -p patchsense -- --version
 ```
 
-### Prebuilt binaries (not out yet)
+### Prebuilt binaries
 
-npm, PyPI, Composer, Go, Homebrew, and Docker install a prebuilt binary. Those binaries are published with the first GitHub Release. That release does not exist yet, so the commands in this section do not work today. The wrappers in this repository are the ones that will run them.
+npm, PyPI, Composer, Go, Homebrew, the shell installer, and Docker install a prebuilt binary from GitHub Release [`v0.1.2`](https://github.com/Widyasa/patchsense/releases/tag/v0.1.2). The npm, PyPI, and Composer commands work once the package is live on that registry.
 
 | Channel | Command | Notes |
 |---|---|---|
 | npm | `npm install --save-dev patchsense`, then `npx patchsense scan .` | cargo-dist package, created when the GitHub Release is published. Also `pnpm add -D patchsense && pnpm exec patchsense scan .` and `yarn add -D patchsense && yarn patchsense scan .` |
 | PyPI | `pip install patchsense`, `pipx install patchsense`, or `uv tool install patchsense` | Wheels from [`.github/workflows/pypi.yml`](.github/workflows/pypi.yml): Linux x64 and arm64 (manylinux, glibc), macOS x64 and arm64, Windows x64. Not Alpine. The wheel does not download a GitHub Release |
 | Composer | `composer require --dev widyasa/patchsense`, then `vendor/bin/patchsense scan .` | Root [`composer.json`](composer.json). The first run downloads the release archive and checks sha256 |
-| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.0` | [`go/cmd/patchsense`](go/cmd/patchsense) downloads the same archive. The source still requests release `v0.1.0`; that constant is bumped when the release tag is created |
-| Homebrew | `brew install Widyasa/tap/patchsense` | The release workflow pushes the formula to `Widyasa/homebrew-tap` |
-| shell | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.0/patchsense-installer.sh \| sh` | cargo-dist installer. Checks sha256 before unpacking. The URL uses `v0.1.0` until the launcher constants move to the release tag |
+| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.2` | [`go/cmd/patchsense`](go/cmd/patchsense) downloads the same archive and checks sha256 |
+| Homebrew | `brew install Widyasa/tap/patchsense` | Formula in [`Widyasa/homebrew-tap`](https://github.com/Widyasa/homebrew-tap) |
+| shell | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.2/patchsense-installer.sh \| sh` | cargo-dist installer. Checks sha256 before unpacking. Windows: `patchsense-installer.ps1` |
 | Docker | `docker build -t patchsense .`, then `docker run --rm -v "$PWD:/work" -w /work patchsense scan .` | Local image only ([`Dockerfile`](Dockerfile)). Alpine x64, so [`scripts/fetch-release.sh`](scripts/fetch-release.sh) downloads the musl archive. The image is not pushed to a registry |
 
 The release archives cover `x86_64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, and `x86_64-pc-windows-msvc`. There is no Linux arm64 musl archive and no Windows arm64 archive.
 
 Composer, Go, and the Docker entrypoint cache the downloaded binary under `~/.cache/patchsense` (`PATCHSENSE_CACHE_DIR` overrides that directory). `PATCHSENSE_BINARY` points them at a binary you already built and skips the download. `PATCHSENSE_TARGET` overrides target detection. The PyPI wheel and the cargo-dist npm package do not read `PATCHSENSE_BINARY`.
 
-Before any git tag exists, `go install github.com/Widyasa/patchsense/go/cmd/patchsense@latest` installs a pseudo-version. The launcher still requests the release recorded in source (`v0.1.0`) and says that release is not published yet.
+Archives are `patchsense-<target>.tar.gz` (Windows included) and are listed with their sha256 in the release `dist-manifest.json` and `sha256.sum`.
 
 ## Quick start
 

@@ -19,9 +19,9 @@ import (
 )
 
 func TestLauncherVersionStaysOnTheReleasePin(t *testing.T) {
-	// The crate version can move ahead of the launchers. 0.1.2 is a crates.io
-	// docs release. These constants still name GitHub Release v0.1.0 and are
-	// bumped with that tag, not with every crate version.
+	// The crate version can move ahead of the launchers. These constants name
+	// the GitHub Release the launchers download (v0.1.2) and are bumped with
+	// that tag, not with every crate version.
 	root := filepath.Join("..", "..", "..")
 	php, err := os.ReadFile(filepath.Join(root, "bin", "patchsense"))
 	if err != nil {
@@ -36,8 +36,8 @@ func TestLauncherVersionStaysOnTheReleasePin(t *testing.T) {
 		t.Fatal(err)
 	}
 	pin := patchsenseVersion
-	if pin != "0.1.0" {
-		t.Fatalf("launcher pin = %s, want 0.1.0 until the GitHub Release tag", pin)
+	if pin != "0.1.2" {
+		t.Fatalf("launcher pin = %s, want 0.1.2 (GitHub Release v0.1.2)", pin)
 	}
 	for _, body := range []string{string(php), string(shell), string(composer)} {
 		if !strings.Contains(body, pin) {
@@ -134,10 +134,10 @@ func TestChecksumMismatchIsNotCached(t *testing.T) {
 	entry["checksums"] = map[string]string{"sha256": strings.Repeat("ab", 32)}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/releases/download/v0.1.0/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/releases/download/v0.1.2/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(edited)
 	})
-	mux.HandleFunc("/releases/download/v0.1.0/patchsense-"+triple+".tar.gz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/releases/download/v0.1.2/patchsense-"+triple+".tar.gz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(archive)
 	})
 	srv := httptest.NewServer(mux)
@@ -228,10 +228,10 @@ func serveRelease(t *testing.T, triple string, binary []byte) (*httptest.Server,
 		},
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/releases/download/v0.1.0/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/releases/download/v0.1.2/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(manifest)
 	})
-	mux.HandleFunc("/releases/download/v0.1.0/"+name, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/releases/download/v0.1.2/"+name, func(w http.ResponseWriter, r *http.Request) {
 		w.Write(archive)
 	})
 	srv := httptest.NewServer(mux)
@@ -340,10 +340,10 @@ func TestAsset404IsNotPublished(t *testing.T) {
 		},
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/releases/download/v0.1.0/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/releases/download/v0.1.2/dist-manifest.json", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(manifest)
 	})
-	mux.HandleFunc("/releases/download/v0.1.0/"+name, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/releases/download/v0.1.2/"+name, func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	})
 	srv := httptest.NewServer(mux)

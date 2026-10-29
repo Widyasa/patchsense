@@ -9,7 +9,7 @@
 # PATCHSENSE_TARGET overrides target detection.
 set -eu
 
-version=0.1.0
+version=0.1.2
 
 fail() {
   echo "patchsense: $*" >&2

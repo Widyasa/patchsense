@@ -15,7 +15,7 @@ declare(strict_types=1);
  * PATCHSENSE_TARGET overrides target detection (tests, or a wrong libc guess).
  */
 
-const PATCHSENSE_VERSION = '0.1.0';
+const PATCHSENSE_VERSION = '0.1.2';
 const DEFAULT_RELEASE_BASE = 'https://github.com/Widyasa/patchsense/releases/download';
 
 main($argv);
