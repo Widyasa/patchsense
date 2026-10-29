@@ -6,6 +6,8 @@ Phase B publishes the binary channels after GitHub Actions billing is fixed. The
 
 Do not push `v0.1.0`. The binary-channel tag and `v0` are created in Phase B. `v0` points at that commit. This tree's version is `0.1.2`.
 
+Phase B status (2026-10-29): GitHub Actions is disabled on the repository (billing lock), so Kodi built `v0.1.2` locally with cargo-dist 0.33.1 (cargo-zigbuild for Linux glibc 2.17 and macOS, cargo-xwin for Windows) from `ba0552e`, pushed tags `v0.1.2` and `v0`, created the GitHub Release with every archive, installer, `sha256.sum` and `dist-manifest.json`, and pushed `Formula/patchsense.rb` to `Widyasa/homebrew-tap`. Go works through proxy.golang.org. npm, PyPI and Packagist wait for Widya's credentials (B3 and B5); the built npm tarball and wheels are not in git.
+
 `CHANGELOG.md` has `## [0.1.0] - 2026-10-28`, `## [0.1.1]`, and `## [0.1.2] - 2026-10-29`. `0.1.2` is the docs README release. Do not tag the commit until Phase B.
 
 ## Phase A — v0.1.0, crates.io only

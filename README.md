@@ -343,7 +343,7 @@ jobs:
 
 `pull-requests: write` is the permission for that comment. `patchsense comment` writes a pull-request conversation comment through the issue-comment routes above, and GitHub authorizes those routes on a pull request with `pull-requests: write`. `issues: write` is not required.
 
-The composite action in [`action.yml`](action.yml) downloads the GitHub Release installer by default. That installer is part of the release that is not out yet. Until then, build the binary and pass `binary-path`, as [`.github/workflows/self-test.yml`](.github/workflows/self-test.yml) does. The job still needs `pull-requests: write` when `comment` is left at its default (`true`), and `security-events: write` when `sarif` is left at its default (`true`):
+The composite action in [`action.yml`](action.yml) downloads the GitHub Release installer by default (`uses: Widyasa/patchsense@v0`, or pin `version: 0.1.2`). To test an unreleased build instead, build the binary and pass `binary-path`, as [`.github/workflows/self-test.yml`](.github/workflows/self-test.yml) does. The job needs `pull-requests: write` when `comment` is left at its default (`true`), and `security-events: write` when `sarif` is left at its default (`true`):
 
 ```yaml
 permissions:
@@ -365,7 +365,7 @@ jobs:
           binary-path: target/release/patchsense
 ```
 
-On GitLab, run the same scan with `--format gitlab --output gl-dependency-scanning-report.json` and `patchsense comment --provider gitlab` with a masked `GITLAB_TOKEN`. [`templates/gitlab/patchsense.gitlab-ci.yml`](templates/gitlab/patchsense.gitlab-ci.yml) is the template. Its installer also downloads the GitHub Release, so a pipeline that reaches that step fails until the release exists. Details are in [`docs/gitlab.md`](docs/gitlab.md).
+On GitLab, run the same scan with `--format gitlab --output gl-dependency-scanning-report.json` and `patchsense comment --provider gitlab` with a masked `GITLAB_TOKEN`. [`templates/gitlab/patchsense.gitlab-ci.yml`](templates/gitlab/patchsense.gitlab-ci.yml) is the template. Its installer downloads `patchsense-installer.sh` from the GitHub Release (`latest`, or set `PATCHSENSE_VERSION`). Details are in [`docs/gitlab.md`](docs/gitlab.md).
 
 ## Supported ecosystems and lockfiles
 
