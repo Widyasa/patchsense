@@ -2,6 +2,12 @@
 
 All notable changes to PatchSense are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- PyPI sdist: `pyproject.toml` sets `license-files = ["LICENSE-APACHE", "LICENSE-MIT"]`, so maturin puts both files at the sdist root where the `License-File` metadata points. PyPI rejected the 0.1.2 sdist without them.
+
 ## [0.1.2] - 2026-10-29
 
 ### Changed
