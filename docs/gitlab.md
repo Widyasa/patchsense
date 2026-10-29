@@ -35,4 +35,4 @@ When both `CI_MERGE_REQUEST_IID` and `GITLAB_TOKEN` are set, the job runs `patch
 
 ## Manual check
 
-This repository was not run on a GitLab project from this change. Widya runs one pipeline on a test project after the installer release exists and records the result.
+This repository was not run on a GitLab project from this change. The installer release (`v0.1.2`) exists now; a run on a GitLab test project is still to be recorded here.

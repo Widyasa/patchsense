@@ -1,6 +1,10 @@
 # PatchSense
 
-[![crates.io](https://img.shields.io/crates/v/patchsense.svg)](https://crates.io/crates/patchsense)
+[![crates.io](https://img.shields.io/crates/v/patchsense.svg?label=crates.io)](https://crates.io/crates/patchsense)
+[![npm](https://img.shields.io/npm/v/patchsense.svg?label=npm)](https://www.npmjs.com/package/patchsense)
+[![PyPI](https://img.shields.io/pypi/v/patchsense.svg?label=PyPI)](https://pypi.org/project/patchsense/)
+[![Packagist](https://img.shields.io/packagist/v/widyasa/patchsense.svg?label=Packagist)](https://packagist.org/packages/widyasa/patchsense)
+[![GitHub release](https://img.shields.io/github/v/release/Widyasa/patchsense.svg?label=release)](https://github.com/Widyasa/patchsense/releases/latest)
 [![license](https://img.shields.io/crates/l/patchsense.svg)](https://github.com/Widyasa/patchsense#license)
 
 PatchSense reads your lockfiles, looks up every pinned package in [OSV](https://osv.dev), and ranks each advisory from 0 to 100 using CISA KEV (known exploited), FIRST EPSS (exploit probability), CVSS, whether the package is a direct dependency, and whether a fix exists. Instead of a flat list of CVEs you get three tiers, **Critical**, **Review**, and **Defer**, so you know what to patch first. It runs locally, caches data in SQLite, works offline from that cache, writes table, JSON, SARIF, Markdown, and GitLab reports, can post a pull-request or merge-request comment, and ships an MCP server for coding agents.
@@ -9,40 +13,55 @@ PatchSense reads your lockfiles, looks up every pinned package in [OSV](https://
 
 ## Install
 
-### cargo (available now)
-
-```bash
-cargo install patchsense --locked
-```
-
-This installs the latest `patchsense` release from crates.io. It needs Rust 1.99 or newer (`rust-version` in `Cargo.toml`).
-
-From a checkout of this repository:
-
-```bash
-cargo build --release -p patchsense
-cargo run -p patchsense -- --version
-```
-
-### Prebuilt binaries
-
-npm, PyPI, Composer, Go, Homebrew, the shell installer, and Docker install a prebuilt binary from GitHub Release [`v0.1.2`](https://github.com/Widyasa/patchsense/releases/tag/v0.1.2). The npm, PyPI, and Composer commands work once the package is live on that registry.
+PatchSense 0.1.2 is published on every channel below. Pick the one that fits your toolchain; they all install the same `patchsense` binary.
 
 | Channel | Command | Notes |
 |---|---|---|
-| npm | `npm install --save-dev patchsense`, then `npx patchsense scan .` | cargo-dist package, created when the GitHub Release is published. Also `pnpm add -D patchsense && pnpm exec patchsense scan .` and `yarn add -D patchsense && yarn patchsense scan .` |
-| PyPI | `pip install patchsense`, `pipx install patchsense`, or `uv tool install patchsense` | Wheels from [`.github/workflows/pypi.yml`](.github/workflows/pypi.yml): Linux x64 and arm64 (manylinux, glibc), macOS x64 and arm64, Windows x64. Not Alpine. The wheel does not download a GitHub Release |
-| Composer | `composer require --dev widyasa/patchsense`, then `vendor/bin/patchsense scan .` | Root [`composer.json`](composer.json). The first run downloads the release archive and checks sha256 |
-| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.2` | [`go/cmd/patchsense`](go/cmd/patchsense) downloads the same archive and checks sha256 |
-| Homebrew | `brew install Widyasa/tap/patchsense` | Formula in [`Widyasa/homebrew-tap`](https://github.com/Widyasa/homebrew-tap) |
-| shell | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.2/patchsense-installer.sh \| sh` | cargo-dist installer. Checks sha256 before unpacking. Windows: `patchsense-installer.ps1` |
-| Docker | `docker build -t patchsense .`, then `docker run --rm -v "$PWD:/work" -w /work patchsense scan .` | Local image only ([`Dockerfile`](Dockerfile)). Alpine x64, so [`scripts/fetch-release.sh`](scripts/fetch-release.sh) downloads the musl archive. The image is not pushed to a registry |
+| crates.io | `cargo install patchsense --locked` | Builds from source. Needs Rust 1.99 or newer |
+| Shell installer (Linux, macOS) | `curl --proto '=https' --tlsv1.2 -fsSL https://github.com/Widyasa/patchsense/releases/download/v0.1.2/patchsense-installer.sh \| sh` | Downloads the archive from GitHub Release [`v0.1.2`](https://github.com/Widyasa/patchsense/releases/tag/v0.1.2) and checks sha256 |
+| PowerShell installer (Windows) | `powershell -ExecutionPolicy Bypass -c "irm https://github.com/Widyasa/patchsense/releases/download/v0.1.2/patchsense-installer.ps1 \| iex"` | Same release, Windows x64 |
+| npm | `npx patchsense scan .`, `npm install -g patchsense`, or `npm install --save-dev patchsense` | Package [`patchsense`](https://www.npmjs.com/package/patchsense). Downloads the release binary on first run. Also `pnpm add -D patchsense` and `yarn add -D patchsense` |
+| PyPI | `pip install patchsense`, `pipx install patchsense`, or `uv tool install patchsense` | Project [`patchsense`](https://pypi.org/project/patchsense/). Wheels bundle the binary: Linux x64 and arm64 (manylinux2014, glibc), macOS x64 and arm64, Windows x64. No musl/Alpine wheel; other platforms build from the sdist with Rust |
+| Composer | `composer require --dev widyasa/patchsense`, then `vendor/bin/patchsense scan .` | Package [`widyasa/patchsense`](https://packagist.org/packages/widyasa/patchsense). Needs PHP 8.1+ with `curl` and `json`. The first run downloads the release archive and checks sha256 |
+| Go | `go install github.com/Widyasa/patchsense/go/cmd/patchsense@v0.1.2` (or `@latest`) | [`go/cmd/patchsense`](go/cmd/patchsense) is a small launcher. The first run downloads the release archive and checks sha256 |
+| Homebrew (macOS, Linux) | `brew install Widyasa/tap/patchsense` | Formula [`Formula/patchsense.rb`](https://github.com/Widyasa/homebrew-tap/blob/main/Formula/patchsense.rb) in [`Widyasa/homebrew-tap`](https://github.com/Widyasa/homebrew-tap) |
+| Docker (build locally) | `docker build -t patchsense .`, then `docker run --rm -v "$PWD:/work" -w /work patchsense scan .` | No image is published to Docker Hub, GHCR, or any other registry. Build it from this repository's [`Dockerfile`](Dockerfile). Alpine x64; the entrypoint ([`scripts/fetch-release.sh`](scripts/fetch-release.sh)) downloads the musl archive and checks sha256 |
 
-The release archives cover `x86_64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, and `x86_64-pc-windows-msvc`. There is no Linux arm64 musl archive and no Windows arm64 archive.
+Check the install:
 
-Composer, Go, and the Docker entrypoint cache the downloaded binary under `~/.cache/patchsense` (`PATCHSENSE_CACHE_DIR` overrides that directory). `PATCHSENSE_BINARY` points them at a binary you already built and skips the download. `PATCHSENSE_TARGET` overrides target detection. The PyPI wheel and the cargo-dist npm package do not read `PATCHSENSE_BINARY`.
+```bash
+patchsense --version   # patchsense 0.1.2
+```
 
-Archives are `patchsense-<target>.tar.gz` (Windows included) and are listed with their sha256 in the release `dist-manifest.json` and `sha256.sum`.
+### Release archives
+
+GitHub Release [`v0.1.2`](https://github.com/Widyasa/patchsense/releases/tag/v0.1.2) has `patchsense-<target>.tar.gz` for these targets (Windows included, also `.tar.gz`):
+
+| Target | Platform |
+|---|---|
+| `x86_64-unknown-linux-gnu` | Linux x64, glibc 2.17 or newer |
+| `x86_64-unknown-linux-musl` | Linux x64, static (Alpine) |
+| `aarch64-unknown-linux-gnu` | Linux arm64, glibc 2.17 or newer |
+| `x86_64-apple-darwin` | macOS Intel, 10.12 or newer |
+| `aarch64-apple-darwin` | macOS Apple silicon, 11 or newer |
+| `x86_64-pc-windows-msvc` | Windows x64 |
+
+There is no Linux arm64 musl archive and no Windows arm64 archive. Every archive has a `.sha256` file, and `sha256.sum` and `dist-manifest.json` list all of them.
+
+The macOS and Windows binaries are not code-signed or notarized. A macOS binary downloaded with a browser may be blocked by Gatekeeper (`xattr -d com.apple.quarantine patchsense` clears it), and Windows SmartScreen may warn on first run. The shell and PowerShell installers, Homebrew, Composer, Go, and Docker download with their own HTTP client and check sha256. The npm package downloads the same archive but does not check sha256.
+
+### Launcher options
+
+Composer, Go, and the Docker entrypoint cache the downloaded binary under `~/.cache/patchsense` (`PATCHSENSE_CACHE_DIR` overrides that directory). `PATCHSENSE_BINARY` points them at a binary you already built and skips the download. `PATCHSENSE_TARGET` overrides target detection. The PyPI wheel and the npm package do not read `PATCHSENSE_BINARY`.
+
+### From source
+
+```bash
+git clone https://github.com/Widyasa/patchsense
+cd patchsense
+cargo build --release -p patchsense
+./target/release/patchsense --version
+```
 
 ## Quick start
 
@@ -412,6 +431,7 @@ Details:
 
 ## Links
 
+- Packages: [crates.io](https://crates.io/crates/patchsense), [npm](https://www.npmjs.com/package/patchsense), [PyPI](https://pypi.org/project/patchsense/), [Packagist](https://packagist.org/packages/widyasa/patchsense), [Homebrew tap](https://github.com/Widyasa/homebrew-tap), [GitHub Releases](https://github.com/Widyasa/patchsense/releases)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Known limitations: [`docs/limitations.md`](docs/limitations.md)
 - Go import check: [`docs/go-import-reachability.md`](docs/go-import-reachability.md)
