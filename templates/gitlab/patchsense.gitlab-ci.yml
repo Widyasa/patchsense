@@ -3,9 +3,9 @@
 # include:
 #   - local: templates/gitlab/patchsense.gitlab-ci.yml
 #
-# Or, after a GitHub release exists, from the raw file URL.
+# Or from the raw file URL of a release tag (for example v0.1.2).
 # Set GITLAB_TOKEN (project access token, api scope, masked) to comment on
-# merge requests. The release installer is not published yet; see docs/gitlab.md.
+# merge requests. The installer comes from the GitHub Release; see docs/gitlab.md.
 
 variables:
   PATCHSENSE_VERSION: "latest"
